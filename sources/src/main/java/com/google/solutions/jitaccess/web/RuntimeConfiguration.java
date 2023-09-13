@@ -68,6 +68,9 @@ public class RuntimeConfiguration {
     this.maxNumberOfJitRolesPerSelfApproval = new IntSetting(
       List.of("ACTIVATION_REQUEST_MAX_ROLES"),
       10);
+    this.requiredProjectTagPath = new StringSetting(
+      List.of("REQUIRED_PROJECT_TAG_PATH"),
+      "");
 
     //
     // Backend service id (Cloud Run only).
@@ -196,6 +199,11 @@ public class RuntimeConfiguration {
    * Maximum number of (JIT-) eligible roles that can be activated at once.
    */
   public final IntSetting maxNumberOfJitRolesPerSelfApproval;
+
+  /**
+   * Required Tag that projects should have to be considered for search.
+   */
+  public final StringSetting requiredProjectTagPath;
 
   public boolean isSmtpConfigured() {
     var requiredSettings = List.of(smtpHost, smtpPort, smtpSenderName, smtpSenderAddress);
