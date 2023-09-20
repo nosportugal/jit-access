@@ -1,0 +1,14 @@
+documentation:
+- "**/*.md"
+
+prod:
+- "**/*_p_*/**/*.tf"
+
+non-prod:
+- "**/*_d_*/**/*.tf"
+- "**/*_np_*/**/*.tf"
+
+config:
+- .github/**/*
+- CODEOWNERS
+- .*.*

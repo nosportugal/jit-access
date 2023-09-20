@@ -1,0 +1,74 @@
+version: 2
+mergeable:
+  - when: pull_request.opened
+    validate:
+      - do: assignee
+        max:
+          count: 5 # There should not be more than 5 assignees
+        min:
+          count: 1 # min number of assignees
+    fail:
+      - do: assign
+        assignees: [ '@author' ] # only array accepted, use @author for PR/Issue author
+
+## Kind Labels
+  - when: issues.opened, issues.reopened, issues.unlabeled
+    name: Checks Labels for Triage Process (Kind)
+    validate:
+      - do: label
+        must_exclude:
+          regex:
+            - '^kind\/.*'
+            - "needs-kind"
+    pass:
+      - do: labels
+        add: "needs-kind"
+
+  - when: issues.labeled
+    name: Checks Labels for Triage Process (Kind)
+    validate:
+      - do: label
+        must_include:
+          regex:
+            - '^kind\/.*'
+    pass:
+      - do: labels
+        delete: "needs-kind"
+
+## Triage Labels
+  - when: issues.opened, issues.reopened, issues.unlabeled
+    name: Checks Labels for Triage Process (triage)
+    validate:
+      - do: label
+        must_exclude:
+          regex:
+            - '^triage\/.*'
+            - "needs-triage"
+    pass:
+      - do: labels
+        add: "needs-triage"
+
+  - when: issues.labeled
+    name: Checks Labels for Triage Process (triage)
+    validate:
+      - do: label
+        must_include:
+          regex:
+            - '^triage\/.*'
+    pass:
+      - do: labels
+        delete: "needs-triage"
+
+## Assignee Labels
+  - when: issues.reopened, issues.assigned, issues.unassigned
+    name: Checks Labels for Triage Process (Assignees)
+    validate:
+    - do: assignee
+      min:
+        count: 1
+    fail:
+      - do: labels
+        add: "needs-assignees"
+    pass:
+      - do: labels
+        delete: "needs-assignees"
