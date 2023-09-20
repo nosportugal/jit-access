@@ -1,1 +1,1 @@
-testing megalinter something something
+something to test megalinter with
