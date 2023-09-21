@@ -8,6 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Sync latest commits from upstream repo
 
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ['latest', 'master']
+
     steps:
     # REQUIRED step
     # Step 1: run a standard checkout action, provided by github
@@ -16,7 +21,7 @@ jobs:
       with:
         # optional: set the branch to checkout,
         # sync action checks out your 'target_sync_branch' anyway
-        ref:  latest
+        ref:  ${{ matrix.branch }}
         # REQUIRED if your upstream repo is private (see wiki)
         persist-credentials: false
 
@@ -26,10 +31,10 @@ jobs:
       id: sync
       uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
       with:
-        target_sync_branch: latest
+        target_sync_branch: ${{ matrix.branch }}
         # REQUIRED 'target_repo_token' exactly like this!
         target_repo_token: ${{ secrets.GITHUB_TOKEN }}
-        upstream_sync_branch: latest
+        upstream_sync_branch: ${{ matrix.branch }}
         upstream_sync_repo: d-costa/jit-access
 
         # Set test_mode true to run tests instead of the true action!!
