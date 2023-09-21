@@ -6,8 +6,7 @@
 # @global-owner1 and @global-owner2 will be requested for
 # review when someone opens a pull request.
 
-*       @nosportugal/ccoe-gcp-terraform
-*       @nosportugal/ccoe-automations
+*       @nosportugal/ccoe-gcp-terraform @nosportugal/ccoe-automations
 
 
 # Order is important; the last matching pattern takes the most
