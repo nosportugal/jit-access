@@ -1,7 +1,8 @@
 name: 'Upstream Sync'
 
 on:
-  workflow_dispatch:  # click the button on Github repo!
+  schedule:
+    - cron: "48 7 * * *"
 
 jobs:
   sync_latest_from_upstream:
@@ -35,7 +36,7 @@ jobs:
         # REQUIRED 'target_repo_token' exactly like this!
         target_repo_token: ${{ secrets.GITHUB_TOKEN }}
         upstream_sync_branch: ${{ matrix.branch }}
-        upstream_sync_repo: d-costa/jit-access
+        upstream_sync_repo: GoogleCloudPlatform/jit-access
 
         # Set test_mode true to run tests instead of the true action!!
         test_mode: false
