@@ -30,7 +30,7 @@ jobs:
         # REQUIRED 'target_repo_token' exactly like this!
         target_repo_token: ${{ secrets.GITHUB_TOKEN }}
         upstream_sync_branch: latest
-        upstream_sync_repo: GoogleCloudPlatform/jit-access
+        upstream_sync_repo: d-costa/jit-access
 
         # Set test_mode true to run tests instead of the true action!!
         test_mode: true
