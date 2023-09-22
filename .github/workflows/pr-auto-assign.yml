@@ -1,0 +1,21 @@
+name: PR - Auto Assign Members for Review
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - labeled
+
+jobs:
+  pr-auto-assign:
+    if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && (github.event.action == 'opened' || github.event.action == 'reopened' || github.event.action == 'labeled')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Auto-assign PR to triage team members for review'
+        uses: pozil/auto-assign-issue@v1
+        with:
+          assignees: NunesMig,d-costa
+          numOfAssignee: 1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
