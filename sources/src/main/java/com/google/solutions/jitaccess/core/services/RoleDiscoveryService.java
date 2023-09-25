@@ -26,7 +26,9 @@ import com.google.api.services.cloudasset.v1.model.IamPolicyAnalysis;
 import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.AccessDeniedException;
 import com.google.solutions.jitaccess.core.AccessException;
+import com.google.solutions.jitaccess.core.NotAuthenticatedException;
 import com.google.solutions.jitaccess.core.adapters.AssetInventoryAdapter;
+import com.google.solutions.jitaccess.core.adapters.ResourceManagerAdapter;
 import com.google.solutions.jitaccess.core.data.ProjectId;
 import com.google.solutions.jitaccess.core.data.ProjectRole;
 import com.google.solutions.jitaccess.core.data.RoleBinding;
@@ -44,17 +46,22 @@ import java.util.stream.Stream;
  */
 @ApplicationScoped
 public class RoleDiscoveryService {
+
   private final AssetInventoryAdapter assetInventoryAdapter;
+  private final ResourceManagerAdapter resourceManagerAdapter;
 
   private final Options options;
 
   public RoleDiscoveryService(
     AssetInventoryAdapter assetInventoryAdapter,
+    ResourceManagerAdapter resourceManagerAdapter,
     Options configuration) {
     Preconditions.checkNotNull(assetInventoryAdapter, "assetInventoryAdapter");
+    Preconditions.checkNotNull(resourceManagerAdapter, "resourceManagerAdapter");
     Preconditions.checkNotNull(configuration, "configuration");
 
     this.assetInventoryAdapter = assetInventoryAdapter;
+    this.resourceManagerAdapter = resourceManagerAdapter;
     this.options = configuration;
   }
 
@@ -107,7 +114,7 @@ public class RoleDiscoveryService {
    */
   public Set<ProjectId> listAvailableProjects(
     UserId user
-  ) throws AccessException, IOException {
+  ) throws NotAuthenticatedException, AccessException, IOException {
     //
     // NB. To reliably find projects, we have to let the Asset API consider
     // inherited role bindings by using the "expand resources" flag. This
@@ -140,10 +147,26 @@ public class RoleDiscoveryService {
         "TRUE".equalsIgnoreCase(evalResult) ||
         "CONDITIONAL".equalsIgnoreCase(evalResult));
 
-    return roleBindings
+    var projectIds = roleBindings
       .stream()
       .map(b -> ProjectId.fromFullResourceName(b.fullResourceName))
       .collect(Collectors.toSet());
+
+    if (options.requiredProjectTagPath == null || options.requiredProjectTagPath.isBlank()) return projectIds;
+
+    /**
+     * We want to filter tags last, since we need to call the ResourceManager API once for each project.
+     * Since we cannot use methods with checked exceptions in predicates/lambdas without
+     * catching them within the predicate, we need this workaround.
+     */ 
+    Set<ProjectId> filtered = new HashSet<>(projectIds.size());
+    for (ProjectId p : projectIds) {
+      var tags = resourceManagerAdapter.getProjectEffectiveTags(p.getFullResourceName());
+      if (tags.stream().anyMatch(t -> t.getNamespacedTagValue().equals(options.requiredProjectTagPath))) {
+        filtered.add(p);
+      }
+    }
+    return filtered;
   }
 
   /**
@@ -352,11 +375,19 @@ public class RoleDiscoveryService {
      */
     public final String scope;
 
+    public final String requiredProjectTagPath;
+
     /**
      * Search inherited IAM policies
      */
+    public Options(String scope, String requiredProjectTagPath) {
+      this.scope = scope;
+      this.requiredProjectTagPath = requiredProjectTagPath;
+    }
+
     public Options(String scope) {
       this.scope = scope;
+      this.requiredProjectTagPath = null;
     }
   }
 }

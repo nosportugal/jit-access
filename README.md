@@ -15,6 +15,20 @@ without having to grant them permanent access. This type of just-in-time privile
 * Create an audit trail that indicates why privileges were activated.
 * Conduct audits and reviews for analyzing past activity.
 
+## Filter project visibility
+
+Use the `REQUIRED_PROJECT_TAG_PATH` env var to filter the list of projects based on a (namespaced) tag:
+
+* `{organization_id}/{tag_key_short_name}/{tag_value_short_name}`
+* `{project_id}/{tag_key_short_name}/{tag_value_short_name}`
+* `{project_number}/{tag_key_short_name}/{tag_value_short_name}`.
+
+When using this option, you should condition the `Security Admin` role given to the JIT SA
+to only projects that have the tag. This can be done by adding the following condition to the role binding:
+
+```sh
+resource.matchTag('{namespaced_key_name}', '{short_key_value}')
+```
 
 ## Activate roles on demand
 
@@ -107,3 +121,11 @@ _Just-In-Time Access is an open-source project and not an officially supported G
 
 _All files in this repository are under the
 [Apache License, Version 2.0](LICENSE.txt) unless noted otherwise._
+
+```sh
+PROJECT_ID=$(gcloud config get-value core/project)
+cd sources
+gcloud auth configure-docker europe-west1-docker.pkg.dev
+docker build -t europe-west1-docker.pkg.dev/$PROJECT_ID/registry/jitaccess:tag .
+docker push europe-west1-docker.pkg.dev/$PROJECT_ID/registry/jitaccess:tag
+```

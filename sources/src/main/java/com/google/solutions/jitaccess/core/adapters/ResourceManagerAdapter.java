@@ -248,6 +248,36 @@ public class ResourceManagerAdapter {
     }
   }
 
+  /**
+   * TODO
+   * @param projectResourceName - full resource name of the project
+   * @return
+   */
+  public List<EffectiveTag> getProjectEffectiveTags(
+    String projectResourceName
+    ) throws NotAuthenticatedException, IOException {
+    try
+    {
+      var response = createClient()
+        .effectiveTags()
+        .list()
+        .setParent(projectResourceName)
+        .execute();
+
+      return response.getEffectiveTags() != null
+        ? response.getEffectiveTags()
+        : List.of();
+    }
+    catch (GoogleJsonResponseException e) {
+      switch (e.getStatusCode()) {
+        case 401:
+          throw new NotAuthenticatedException("Not authenticated", e);
+        default:
+          throw (GoogleJsonResponseException) e.fillInStackTrace();
+      }
+    }
+  }
+
   //---------------------------------------------------------------------
   // Inner classes.
   //---------------------------------------------------------------------
