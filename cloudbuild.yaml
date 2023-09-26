@@ -47,12 +47,12 @@ steps:
   - id: "create-attestation"
     name: "${_BINARY_AUTHZ_IMAGE_NAME}"
     args:
-      - "--artifact-url"
-      - "${_IMAGE_NAME}:${TAG_NAME}"
-      - "--attestor"
-      - "${_ATTESTOR_ID}"
-      - "--keyversion"
-      - "${_KEY_VERSION_ID}"
+      - '--artifact-url'
+      - '${_IMAGE_NAME}:${TAG_NAME}'
+      - '--attestor'
+      - '${_ATTESTOR_ID}'
+      - '--keyversion'
+      - '${_KEY_VERSION_ID}'
 
 images:
   - "${_IMAGE_NAME}:${TAG_NAME}"
