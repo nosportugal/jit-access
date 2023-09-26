@@ -19,7 +19,7 @@ steps:
     args:
       - -c
       - |
-        gcloud artifacts docker images scan ${_IMAGE_NAME:} \
+        gcloud artifacts docker images scan ${_IMAGE_NAME} \
         --format='value(response.scan)' > /workspace/scan_id.txt
   # Check vulnerability severity
   - id: severity check
