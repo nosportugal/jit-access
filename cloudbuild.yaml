@@ -7,11 +7,13 @@ substitutions:
 steps:
   # Build image
   - id: "build"
+    dir: "sources"
     name: "gcr.io/cloud-builders/docker"
     args: ["build", "-t", "${_IMAGE_NAME}", "."]
     waitFor: ["-"] # immediately
   # Run a vulnerability scan
   - id: scan
+    dir: "sources"
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: /bin/bash
     args:
@@ -21,6 +23,7 @@ steps:
         --format='value(response.scan)' > /workspace/scan_id.txt
   # Check vulnerability severity
   - id: severity check
+    dir: "sources"
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: /bin/bash
     args:
@@ -31,14 +34,17 @@ steps:
         then echo 'Failed vulnerability check' && exit 1; else echo "No CRITICAL vulnerability found, congrats !" && exit 0; fi
   # Retag image to match release tag
   - id: "retag"
+    dir: "sources"
     name: "gcr.io/cloud-builders/docker"
     args: ["tag", "${_IMAGE_NAME}", "${_IMAGE_NAME}:${TAG_NAME}"]
   # Push to artifact registry
   - id: "push"
+    dir: "sources"
     name: "gcr.io/cloud-builders/docker"
     args: ["push", "${_IMAGE_NAME}:${TAG_NAME}"]
   # Sign the image only if the severity check passes
   - id: "create-attestation"
+    dir: "sources"
     name: "gcr.io/${PROJECT_ID}/binauthz-attestation:latest"
     args:
       - "--artifact-url"
