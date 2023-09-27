@@ -2,6 +2,7 @@
 
 substitutions:
   _IMAGE_NAME: "${LOCATION}-docker.pkg.dev/${PROJECT_ID}/registry/${REPO_NAME}"
+  _BINARY_AUTHZ_IMAGE_NAME: "${LOCATION}-docker.pkg.dev/${PROJECT_ID}/registry/binauthz-attestation"
   _SEVERITY: '"CRITICAL|HIGH"'
 
 steps:
@@ -42,10 +43,9 @@ steps:
     dir: "sources"
     name: "gcr.io/cloud-builders/docker"
     args: ["push", "${_IMAGE_NAME}:${TAG_NAME}"]
-  # Sign the image only if the severity check passes
+  # Sign image
   - id: "create-attestation"
-    dir: "sources"
-    name: "gcr.io/${PROJECT_ID}/binauthz-attestation:latest"
+    name: "${_BINARY_AUTHZ_IMAGE_NAME}"
     args:
       - "--artifact-url"
       - "${_IMAGE_NAME}:${TAG_NAME}"
