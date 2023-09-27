@@ -45,7 +45,7 @@ steps:
     args: ["push", "${_IMAGE_NAME}:${TAG_NAME}"]
   # Sign image
   - id: "create-attestation"
-    name: "${_BINARY_AUTHZ_IMAGE_NAME}"
+    name: "${_BINARY_AUTHZ_IMAGE_NAME}:latest"
     args:
       - "--artifact-url"
       - "${_IMAGE_NAME}:${TAG_NAME}"
