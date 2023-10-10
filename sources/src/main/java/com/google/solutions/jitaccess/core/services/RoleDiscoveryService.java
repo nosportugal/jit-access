@@ -34,6 +34,7 @@ import com.google.solutions.jitaccess.core.data.ProjectRole;
 import com.google.solutions.jitaccess.core.data.RoleBinding;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.util.*;
@@ -112,6 +113,7 @@ public class RoleDiscoveryService {
   /**
    * Find projects that a user has standing, JIT-, or MPA-eligible access to.
    */
+  @WithSpan
   public Set<ProjectId> listAvailableProjects(
     UserId user
   ) throws NotAuthenticatedException, AccessException, IOException {
@@ -188,6 +190,7 @@ public class RoleDiscoveryService {
   /**
    * List eligible role bindings for the given user.
    */
+  @WithSpan
   public Result<ProjectRole> listEligibleProjectRoles(
     UserId user,
     ProjectId projectId,
@@ -312,6 +315,7 @@ public class RoleDiscoveryService {
   /**
    * List users that can approve the activation of an eligible role binding.
    */
+  @WithSpan
   public Set<UserId> listEligibleUsersForProjectRole(
     UserId callerUserId,
     RoleBinding roleBinding
