@@ -28,6 +28,7 @@ import com.google.solutions.jitaccess.core.AccessException;
 import com.google.solutions.jitaccess.core.adapters.SmtpAdapter;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.time.Instant;
@@ -113,6 +114,7 @@ public abstract class NotificationService {
     }
 
     @Override
+    @WithSpan
     public void sendNotification(Notification notification) throws NotificationException {
       Preconditions.checkNotNull(notification, "notification");
 
