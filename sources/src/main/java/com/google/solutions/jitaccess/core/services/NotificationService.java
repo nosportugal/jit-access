@@ -48,6 +48,8 @@ import java.util.stream.Collectors;
  */
 @ApplicationScoped
 public abstract class NotificationService {
+
+  @WithSpan
   public abstract void sendNotification(Notification notification) throws NotificationException;
 
   public abstract boolean canSendNotifications();
