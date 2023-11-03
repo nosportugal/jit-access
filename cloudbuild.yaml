@@ -45,14 +45,17 @@ steps:
     args: ["push", "${_IMAGE_NAME}:${TAG_NAME}"]
   # Sign image
   - id: "create-attestation"
-    name: "${_BINARY_AUTHZ_IMAGE_NAME}:latest"
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: /bin/bash
     args:
-      - "--artifact-url"
-      - "${_IMAGE_NAME}:${TAG_NAME}"
-      - "--attestor"
-      - "${_ATTESTOR_ID}"
-      - "--keyversion"
-      - "${_KEY_VERSION_ID}"
+      - -c
+      - |
+        docker pull "${_IMAGE_NAME}:${TAG_NAME}"
+        && IMAGE_AND_DIGEST="$(docker inspect "${_IMAGE_NAME}:${TAG_NAME}" --format='{{index .RepoDigests 0}}')"
+        && gcloud container binauthz attestations sign-and-create
+        --attestor="${_ATTESTOR_ID}"
+        --artifact-url="$IMAGE_AND_DIGEST"
+        --keyversion="${_KEY_VERSION_ID}"
 
 images:
   - "${_IMAGE_NAME}:${TAG_NAME}"
