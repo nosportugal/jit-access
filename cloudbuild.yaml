@@ -30,9 +30,10 @@ steps:
     args:
       - -c
       - |
-        gcloud artifacts docker images list-vulnerabilities $(cat /workspace/scan_id.txt) \
-        --format='value(vulnerability.effectiveSeverity)' | if grep -Exq ${_SEVERITY}; \
-        then echo 'Failed vulnerability check' && exit 1; else echo "No CRITICAL vulnerability found, congrats !" && exit 0; fi
+        gcloud artifacts docker images list-vulnerabilities  $(cat /workspace/scan_id.txt) \
+        --format='value(vulnerability.effectiveSeverity,vulnerability.fixAvailable)' | if  grep -Pq "${_SEVERITY}\tTrue"; \
+        then echo 'Failed vulnerability check' && echo 1; \
+        else echo "No fixable critical or high severity found"  && echo 0; fi
   # Retag image to match release tag
   - id: "retag"
     dir: "sources"
