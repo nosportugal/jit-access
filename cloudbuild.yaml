@@ -2,7 +2,6 @@
 
 substitutions:
   _IMAGE_NAME: "${LOCATION}-docker.pkg.dev/${PROJECT_ID}/registry/${REPO_NAME}"
-  _BINARY_AUTHZ_IMAGE_NAME: "${LOCATION}-docker.pkg.dev/${PROJECT_ID}/registry/binauthz-attestation"
   _SEVERITY: '"CRITICAL|HIGH"'
 
 steps:
@@ -51,10 +50,10 @@ steps:
     args:
       - -c
       - |
-        docker pull "${_IMAGE_NAME}:${TAG_NAME}"
-        && gcloud container binauthz attestations sign-and-create
-        --attestor="${_ATTESTOR_ID}"
-        --artifact-url="$(docker inspect "${_IMAGE_NAME}:${TAG_NAME}" --format='{{index .RepoDigests 0}}')"
+        docker pull "${_IMAGE_NAME}:${TAG_NAME}" \
+        && gcloud container binauthz attestations sign-and-create \
+        --attestor="${_ATTESTOR_ID}" \
+        --artifact-url="$(docker inspect "${_IMAGE_NAME}:${TAG_NAME}" --format='{{index .RepoDigests 0}}')" \
         --keyversion="${_KEY_VERSION_ID}"
 
 images:
