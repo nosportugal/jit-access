@@ -51,7 +51,7 @@ steps:
       - -c
       - |
         docker pull "${_IMAGE_NAME}:${TAG_NAME}" \
-        && gcloud container binauthz attestations sign-and-create \
+        && gcloud beta container binauthz attestations sign-and-create \
         --attestor="${_ATTESTOR_ID}" \
         --artifact-url="$(docker inspect "${_IMAGE_NAME}:${TAG_NAME}" --format='{{index .RepoDigests 0}}')" \
         --keyversion="${_KEY_VERSION_ID}"
