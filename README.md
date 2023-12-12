@@ -17,6 +17,21 @@ without having to grant them permanent access. This type of just-in-time privile
 
 > :memo: **Note:** Just-In-Time Access uses the Policy Analyzer API. Starting January 15, 2024, this API will be subject to [new quota restrictions and might require a Security Command Center subscription](https://cloud.google.com/policy-intelligence/docs/billing-questions#pricing-changes). For further information, see [#193](https://github.com/GoogleCloudPlatform/jit-access/issues/193). 
 
+## Filter project visibility
+
+Use the `REQUIRED_PROJECT_TAG_PATH` env var to filter the list of projects based on a (namespaced) tag:
+
+* `{organization_id}/{tag_key_short_name}/{tag_value_short_name}`
+* `{project_id}/{tag_key_short_name}/{tag_value_short_name}`
+* `{project_number}/{tag_key_short_name}/{tag_value_short_name}`.
+
+When using this option, you should condition the `Security Admin` role given to the JIT SA
+to only projects that have the tag. This can be done by adding the following condition to the role binding:
+
+```sh
+resource.matchTag('{namespaced_key_name}', '{short_key_value}')
+```
+
 ## Activate roles on demand
 
 <a href='doc/Screencast-JIT.gif?raw=true'>
@@ -108,3 +123,11 @@ _Just-In-Time Access is an open-source project and not an officially supported G
 
 _All files in this repository are under the
 [Apache License, Version 2.0](LICENSE.txt) unless noted otherwise._
+
+```sh
+PROJECT_ID=$(gcloud config get-value core/project)
+cd sources
+gcloud auth configure-docker europe-west1-docker.pkg.dev
+docker build -t europe-west1-docker.pkg.dev/$PROJECT_ID/registry/jitaccess:tag .
+docker push europe-west1-docker.pkg.dev/$PROJECT_ID/registry/jitaccess:tag
+```

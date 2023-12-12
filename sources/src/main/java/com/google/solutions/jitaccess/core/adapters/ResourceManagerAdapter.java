@@ -30,6 +30,7 @@ import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.*;
 import com.google.solutions.jitaccess.core.data.ProjectId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -85,6 +86,7 @@ public class ResourceManagerAdapter {
   }
 
   /** Add an IAM binding using the optimistic concurrency control-mechanism. */
+  @WithSpan
   public void addProjectIamBinding(
     ProjectId projectId,
     Binding binding,
@@ -224,6 +226,7 @@ public class ResourceManagerAdapter {
     }
   }
 
+  @WithSpan
   public List<String> testIamPermissions(
     ProjectId projectId,
     List<String> permissions
@@ -288,6 +291,37 @@ public class ResourceManagerAdapter {
       return allProjects.stream()
         .map(p -> new ProjectId(p.getProjectId()))
         .collect(Collectors.toList());
+    }
+    catch (GoogleJsonResponseException e) {
+      switch (e.getStatusCode()) {
+        case 401:
+          throw new NotAuthenticatedException("Not authenticated", e);
+        default:
+          throw (GoogleJsonResponseException) e.fillInStackTrace();
+      }
+    }
+  }
+  
+  /**
+   * Gets the effective tags for a project.
+   * @param projectResourceName - full resource name of the project
+   * @return list of effective tags
+   */
+  @WithSpan
+  public List<EffectiveTag> getProjectEffectiveTags(
+    String projectResourceName
+    ) throws NotAuthenticatedException, IOException {
+    try
+    {
+      var response = createClient()
+        .effectiveTags()
+        .list()
+        .setParent(projectResourceName)
+        .execute();
+
+      return response.getEffectiveTags() != null
+        ? response.getEffectiveTags()
+        : List.of();
     }
     catch (GoogleJsonResponseException e) {
       switch (e.getStatusCode()) {

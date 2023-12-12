@@ -33,6 +33,7 @@ import com.google.solutions.jitaccess.core.ApplicationVersion;
 import com.google.solutions.jitaccess.core.NotAuthenticatedException;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -81,6 +82,7 @@ public class AssetInventoryAdapter {
    * NB. For group membership resolution to work, the service account must have the right
    * privileges in Cloud Identity/Workspace.
    */
+  @WithSpan
   public IamPolicyAnalysis findAccessibleResourcesByUser(
       String scope,
       UserId user,
@@ -138,6 +140,7 @@ public class AssetInventoryAdapter {
   /**
    * Find users or groups that have been (conditionally) granted a given role on a given resource.
    */
+  @WithSpan
   public IamPolicyAnalysis findPermissionedPrincipalsByResource(
       String scope,
       String fullResourceName,

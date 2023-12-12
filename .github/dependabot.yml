@@ -4,11 +4,20 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    assignees:
+      - "d-costa"
+      - "NunesMig"
   - package-ecosystem: "maven"
     directory: "/sources"
     schedule:
       interval: "daily"
+    assignees:
+      - "d-costa"
+      - "NunesMig"
   - package-ecosystem: "docker"
     directory: "/sources"
     schedule:
       interval: "daily"
+    assignees:
+      - "d-costa"
+      - "NunesMig"

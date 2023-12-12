@@ -34,6 +34,7 @@ import com.google.solutions.jitaccess.core.data.ProjectRole;
 import com.google.solutions.jitaccess.core.data.RoleBinding;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.security.SecureRandom;
@@ -130,6 +131,7 @@ public class RoleActivationService {
    * Activate a role binding on behalf of the calling user. This is only
    * allowed for bindings with a JIT-constraint.
    */
+  @WithSpan
   public Activation activateProjectRoleForSelf(
     UserId caller,
     RoleBinding roleBinding,
@@ -202,6 +204,7 @@ public class RoleActivationService {
    * Activate a role binding for a different user (beneficiary). This is only allowed
    * for bindings with an MPA-constraint.
    */
+  @WithSpan
   public Activation activateProjectRoleForPeer(
     UserId caller,
     ActivationRequest request
@@ -279,6 +282,7 @@ public class RoleActivationService {
   /**
    * Create an activation request that can be passed to reviewers.
    */
+  @WithSpan
   public ActivationRequest createActivationRequestForPeer(
     UserId callerAndBeneficiary,
     Set<UserId> reviewers,

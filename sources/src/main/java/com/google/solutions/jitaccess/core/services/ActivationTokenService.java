@@ -27,6 +27,7 @@ import com.google.solutions.jitaccess.core.AccessException;
 import com.google.solutions.jitaccess.core.adapters.IamCredentialsAdapter;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.time.Duration;
@@ -74,6 +75,7 @@ public class ActivationTokenService {
       .build();
   }
 
+  @WithSpan
   public TokenWithExpiry createToken(RoleActivationService.ActivationRequest request) throws AccessException, IOException {
     Preconditions.checkNotNull(request, "request");
     Preconditions.checkArgument(request.startTime.isBefore(Instant.now().plusSeconds(10)));
@@ -93,6 +95,7 @@ public class ActivationTokenService {
       expiryTime);
   }
 
+  @WithSpan
   public RoleActivationService.ActivationRequest verifyToken(
     String token
   ) throws TokenVerifier.VerificationException {

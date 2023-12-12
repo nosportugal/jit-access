@@ -29,6 +29,7 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.*;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -73,6 +74,7 @@ public class SecretManagerAdapter {
    * Access a secret
    * @param secretPath resource path, in the format projects/x/secrets/y/versions/z
    */
+  @WithSpan
   public String accessSecret(
     String secretPath
   ) throws AccessException, IOException {

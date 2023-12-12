@@ -34,6 +34,7 @@ import com.google.solutions.jitaccess.core.ApplicationVersion;
 import com.google.solutions.jitaccess.core.NotAuthenticatedException;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -78,6 +79,7 @@ public class IamCredentialsAdapter {
   /**
    * Sign a JWT using the Google-managed service account key.
    */
+  @WithSpan
   public String signJwt(
     UserId serviceAccount,
     JsonWebToken.Payload payload

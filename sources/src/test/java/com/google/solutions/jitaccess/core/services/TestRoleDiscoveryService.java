@@ -116,7 +116,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var projectIds = service.listAvailableProjects(SAMPLE_USER);
     assertNotNull(projectIds);
@@ -149,7 +149,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var projectIds = service.listAvailableProjects(SAMPLE_USER);
     assertNotNull(projectIds);
@@ -179,7 +179,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var projectIds = service.listAvailableProjects(SAMPLE_USER);
     assertNotNull(projectIds);
@@ -220,7 +220,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var projectIds = service.listAvailableProjects(SAMPLE_USER);
     assertNotNull(projectIds);
@@ -250,7 +250,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -280,7 +280,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -313,7 +313,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -349,7 +349,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -397,7 +397,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -438,7 +438,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
         assetAdapter,
         resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -486,7 +486,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -536,7 +536,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -591,7 +591,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -654,7 +654,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -696,7 +696,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
@@ -751,8 +751,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
-
+      new RoleDiscoveryService.Options("organizations/0", null, null));
     var roles = service.listEligibleProjectRoles(SAMPLE_USER, SAMPLE_PROJECT_ID_1);
 
     assertNotNull(roles.getWarnings());
@@ -823,7 +822,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(
       SAMPLE_USER,
@@ -886,7 +885,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(
       SAMPLE_USER,
@@ -949,7 +948,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var roles = service.listEligibleProjectRoles(
       SAMPLE_USER,
@@ -991,7 +990,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     assertThrows(
       AccessDeniedException.class,
@@ -1029,7 +1028,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var approvers = service.listEligibleUsersForProjectRole(
         SAMPLE_USER,
@@ -1084,7 +1083,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
       assetAdapter,
       resourceManagerAdapter,
-      new RoleDiscoveryService.Options("organizations/0", null));
+      new RoleDiscoveryService.Options("organizations/0", null, null));
 
     var approvers = service.listEligibleUsersForProjectRole(
       SAMPLE_USER,
@@ -1107,7 +1106,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
             assetAdapter,
             resourceManagerAdapter,
-            new RoleDiscoveryService.Options("organizations/0", "parent:folder/0"));
+            new RoleDiscoveryService.Options("organizations/0", "parent:folder/0", null));
 
     var projectIds = service.listAvailableProjects(SAMPLE_USER);
     assertNotNull(projectIds);
@@ -1126,7 +1125,7 @@ public class TestRoleDiscoveryService {
     var service = new RoleDiscoveryService(
             assetAdapter,
             resourceManagerAdapter,
-            new RoleDiscoveryService.Options("organizations/0", "parent:folder/0"));
+            new RoleDiscoveryService.Options("organizations/0", "parent:folder/0", null));
 
     var projectIds = service.listAvailableProjects(SAMPLE_USER);
     assertNotNull(projectIds);

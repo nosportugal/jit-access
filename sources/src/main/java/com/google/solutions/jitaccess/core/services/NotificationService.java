@@ -24,6 +24,7 @@ package com.google.solutions.jitaccess.core.services;
 import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Collection;
 import java.util.HashMap;
@@ -35,6 +36,8 @@ import java.util.stream.Collectors;
  */
 @ApplicationScoped
 public abstract class NotificationService {
+
+  @WithSpan
   public abstract void sendNotification(Notification notification) throws NotificationException;
 
   public abstract boolean canSendNotifications();
@@ -60,6 +63,7 @@ public abstract class NotificationService {
     }
 
     @Override
+    @WithSpan
     public void sendNotification(Notification notification) throws NotificationException {
       if (this.printToConsole) {
         //

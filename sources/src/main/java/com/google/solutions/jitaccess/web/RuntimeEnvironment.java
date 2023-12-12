@@ -263,7 +263,9 @@ public class RuntimeEnvironment {
     return new RoleDiscoveryService.Options(
             this.configuration.scope.getValue(),
             this.configuration.availableProjectsQuery.isValid() ?
-                this.configuration.availableProjectsQuery.getValue() : null
+                this.configuration.availableProjectsQuery.getValue() : null,
+            this.configuration.requiredProjectTagPath.isValid() ?
+                this.configuration.requiredProjectTagPath.getValue() : null
     );
   }
 

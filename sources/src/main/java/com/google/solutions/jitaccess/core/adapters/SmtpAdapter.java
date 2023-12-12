@@ -25,6 +25,7 @@ import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.AccessException;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeBodyPart;
@@ -56,6 +57,7 @@ public class SmtpAdapter {
     this.options = options;
   }
 
+  @WithSpan
   public void sendMail(
     Collection<UserId> toRecipients,
     Collection<UserId> ccRecipients,

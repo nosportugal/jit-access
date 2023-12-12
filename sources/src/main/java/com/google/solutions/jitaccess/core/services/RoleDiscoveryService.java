@@ -26,6 +26,7 @@ import com.google.api.services.cloudasset.v1.model.IamPolicyAnalysis;
 import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.AccessDeniedException;
 import com.google.solutions.jitaccess.core.AccessException;
+import com.google.solutions.jitaccess.core.NotAuthenticatedException;
 import com.google.solutions.jitaccess.core.adapters.AssetInventoryAdapter;
 import com.google.solutions.jitaccess.core.adapters.ResourceManagerAdapter;
 import com.google.solutions.jitaccess.core.data.ProjectId;
@@ -33,6 +34,7 @@ import com.google.solutions.jitaccess.core.data.ProjectRole;
 import com.google.solutions.jitaccess.core.data.RoleBinding;
 import com.google.solutions.jitaccess.core.data.UserId;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.util.*;
@@ -45,8 +47,8 @@ import java.util.stream.Stream;
  */
 @ApplicationScoped
 public class RoleDiscoveryService {
-  private final AssetInventoryAdapter assetInventoryAdapter;
 
+  private final AssetInventoryAdapter assetInventoryAdapter;
   private final ResourceManagerAdapter resourceManagerAdapter;
 
   private final Options options;
@@ -111,9 +113,10 @@ public class RoleDiscoveryService {
   /**
    * Find projects that a user has standing, JIT-, or MPA-eligible access to.
    */
+  @WithSpan
   public Set<ProjectId> listAvailableProjects(
     UserId user
-  ) throws AccessException, IOException {
+  ) throws NotAuthenticatedException, AccessException, IOException {
     if(this.options.availableProjectsQuery == null) {
       //
       // NB. To reliably find projects, we have to let the Asset API consider
@@ -147,18 +150,32 @@ public class RoleDiscoveryService {
           "TRUE".equalsIgnoreCase(evalResult) ||
           "CONDITIONAL".equalsIgnoreCase(evalResult));
 
-      return roleBindings
+      var projectIds = roleBindings
         .stream()
         .map(b -> ProjectId.fromFullResourceName(b.fullResourceName))
         .collect(Collectors.toSet());
+      
+      if (options.requiredProjectTagPath == null || options.requiredProjectTagPath.isBlank()) return projectIds;
+
+        /**
+         * We want to filter tags last, since we need to call the ResourceManager API once for each project.
+         * Since we cannot use methods with checked exceptions in predicates/lambdas without
+         * catching them within the predicate, we need this workaround.
+         */ 
+        Set<ProjectId> filtered = new HashSet<>(projectIds.size());
+        for (ProjectId p : projectIds) {
+          var tags = resourceManagerAdapter.getProjectEffectiveTags(p.getFullResourceName());
+          if (tags.stream().anyMatch(t -> t.getNamespacedTagValue().equals(options.requiredProjectTagPath))) {
+            filtered.add(p);
+          }
+        }
+        return filtered;
       }
     else {
       // Used as alternative option if availableProjectsQuery is set and the main approach with Asset API is not working fast enough.
       return new HashSet<>(resourceManagerAdapter.searchProjectIds(this.options.availableProjectsQuery));
     }
   }
-
-
 
   /**
    * List eligible role bindings for the given user.
@@ -179,6 +196,7 @@ public class RoleDiscoveryService {
   /**
    * List eligible role bindings for the given user.
    */
+  @WithSpan
   public Result<ProjectRole> listEligibleProjectRoles(
     UserId user,
     ProjectId projectId,
@@ -303,6 +321,7 @@ public class RoleDiscoveryService {
   /**
    * List users that can approve the activation of an eligible role binding.
    */
+  @WithSpan
   public Set<UserId> listEligibleUsersForProjectRole(
     UserId callerUserId,
     RoleBinding roleBinding
@@ -366,6 +385,8 @@ public class RoleDiscoveryService {
      */
     public final String scope;
 
+    public final String requiredProjectTagPath;
+
     /**
      * In some cases listing all available projects is not working fast enough and times out,
      * so this method is available as alternative.
@@ -378,12 +399,11 @@ public class RoleDiscoveryService {
 
     /**
      * Search inherited IAM policies
-     */
-    public Options(String scope, String availableProjectsQuery) {
+     */   
+    public Options(String scope, String availableProjectsQuery, String requiredProjectTagPath) {
       this.scope = scope;
       this.availableProjectsQuery = availableProjectsQuery;
+      this.requiredProjectTagPath = requiredProjectTagPath;
     }
-
-
   }
 }

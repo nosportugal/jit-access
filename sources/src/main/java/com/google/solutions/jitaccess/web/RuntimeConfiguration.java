@@ -74,6 +74,9 @@ public class RuntimeConfiguration {
     this.availableProjectsQuery = new StringSetting(
       List.of("AVAILABLE_PROJECTS_QUERY"),
       null);
+    this.requiredProjectTagPath = new StringSetting(
+      List.of("REQUIRED_PROJECT_TAG_PATH"),
+      "");
 
     //
     // Backend service id (Cloud Run only).
@@ -250,6 +253,11 @@ public class RuntimeConfiguration {
    * Write timeout for HTTP requests to backends.
    */
   public final DurationSetting backendWriteTimeout;
+
+  /**
+   * Required Tag that projects should have to be considered for search.
+   */
+  public final StringSetting requiredProjectTagPath;
 
   public boolean isSmtpConfigured() {
     var requiredSettings = List.of(smtpHost, smtpPort, smtpSenderName, smtpSenderAddress);
