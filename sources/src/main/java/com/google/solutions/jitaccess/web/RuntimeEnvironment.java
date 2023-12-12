@@ -32,13 +32,12 @@ import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.common.base.Strings;
 import com.google.solutions.jitaccess.core.ApplicationVersion;
 import com.google.solutions.jitaccess.core.adapters.*;
+import com.google.solutions.jitaccess.core.data.Topic;
 import com.google.solutions.jitaccess.core.data.UserId;
-import com.google.solutions.jitaccess.core.services.ActivationTokenService;
-import com.google.solutions.jitaccess.core.services.NotificationService;
-import com.google.solutions.jitaccess.core.services.RoleActivationService;
-import com.google.solutions.jitaccess.core.services.RoleDiscoveryService;
+import com.google.solutions.jitaccess.core.services.*;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
@@ -58,6 +57,7 @@ import java.util.stream.Stream;
 public class RuntimeEnvironment {
   private static final String CONFIG_IMPERSONATE_SA = "jitaccess.impersonateServiceAccount";
   private static final String CONFIG_DEBUG_MODE = "jitaccess.debug";
+  private static final String CONFIG_PROJECT = "jitaccess.project";
 
   private final String projectId;
   private final String projectNumber;
@@ -159,7 +159,7 @@ public class RuntimeEnvironment {
       //
       // Initialize using development settings and credential.
       //
-      this.projectId = "dev";
+      this.projectId = System.getProperty(CONFIG_PROJECT, "dev");
       this.projectNumber = "0";
 
       try {
@@ -261,8 +261,12 @@ public class RuntimeEnvironment {
   @Produces
   public RoleDiscoveryService.Options getRoleDiscoveryServiceOptions() {
     return new RoleDiscoveryService.Options(
-      this.configuration.scope.getValue(),
-      this.configuration.requiredProjectTagPath.getValue());
+            this.configuration.scope.getValue(),
+            this.configuration.availableProjectsQuery.isValid() ?
+                this.configuration.availableProjectsQuery.getValue() : null,
+            this.configuration.requiredProjectTagPath.isValid() ?
+                this.configuration.requiredProjectTagPath.getValue() : null
+    );
   }
 
   @Produces
@@ -293,7 +297,23 @@ public class RuntimeEnvironment {
 
   @Produces
   @ApplicationScoped
-  public NotificationService getNotificationService(
+  public NotificationService getPubSubNotificationService(
+    PubSubAdapter pubSubAdapter
+  ) {
+    if (this.configuration.topicName.isValid()) {
+      return new PubSubNotificationService(
+        pubSubAdapter,
+        new PubSubNotificationService.Options(
+          new Topic(this.projectId, this.configuration.topicName.getValue())));
+    }
+    else {
+      return new NotificationService.SilentNotificationService(isDebugModeEnabled());
+    }
+  }
+
+  @Produces
+  @ApplicationScoped
+  public NotificationService getEmailNotificationService(
     SecretManagerAdapter secretManagerAdapter
   ) {
     //
@@ -324,12 +344,12 @@ public class RuntimeEnvironment {
           this.configuration.smtpPassword.getValue());
       }
 
-      return new NotificationService.MailNotificationService(
+      return new MailNotificationService(
         new SmtpAdapter(secretManagerAdapter, options),
-        new NotificationService.Options(this.configuration.timeZoneForNotifications.getValue()));
+        new MailNotificationService.Options(this.configuration.timeZoneForNotifications.getValue()));
     }
     else {
-      return new NotificationService.SilentNotificationService();
+      return new NotificationService.SilentNotificationService(isDebugModeEnabled());
     }
   }
 
@@ -337,5 +357,13 @@ public class RuntimeEnvironment {
   public ApiResource.Options getApiOptions() {
     return new ApiResource.Options(
       this.configuration.maxNumberOfJitRolesPerSelfApproval.getValue());
+  }
+
+  @Produces
+  public HttpTransport.Options getHttpTransportOptions() {
+    return new HttpTransport.Options(
+      this.configuration.backendConnectTimeout.getValue(),
+      this.configuration.backendReadTimeout.getValue(),
+      this.configuration.backendWriteTimeout.getValue());
   }
 }

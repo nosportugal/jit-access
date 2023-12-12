@@ -117,58 +117,64 @@ public class RoleDiscoveryService {
   public Set<ProjectId> listAvailableProjects(
     UserId user
   ) throws NotAuthenticatedException, AccessException, IOException {
-    //
-    // NB. To reliably find projects, we have to let the Asset API consider
-    // inherited role bindings by using the "expand resources" flag. This
-    // flag causes the API to return *all* resources for which an IAM binding
-    // applies.
-    //
-    // The risk here is that the list of resources grows so large that we're hitting
-    // the limits of the API, in which case it starts truncating results. To
-    // mitigate this risk, filter on a permission that:
-    //
-    // - only applies to projects, and has no meaning on descendent resources
-    // - represents the lowest level of access to a project.
-    //
-    var analysisResult = this.assetInventoryAdapter.findAccessibleResourcesByUser(
-      this.options.scope,
-      user,
-      Optional.of("resourcemanager.projects.get"),
-      Optional.empty(),
-      true);
+    if(this.options.availableProjectsQuery == null) {
+      //
+      // NB. To reliably find projects, we have to let the Asset API consider
+      // inherited role bindings by using the "expand resources" flag. This
+      // flag causes the API to return *all* resources for which an IAM binding
+      // applies.
+      //
+      // The risk here is that the list of resources grows so large that we're hitting
+      // the limits of the API, in which case it starts truncating results. To
+      // mitigate this risk, filter on a permission that:
+      //
+      // - only applies to projects, and has no meaning on descendent resources
+      // - represents the lowest level of access to a project.
+      //
+      var analysisResult = this.assetInventoryAdapter.findAccessibleResourcesByUser(
+        this.options.scope,
+        user,
+        Optional.of("resourcemanager.projects.get"),
+        Optional.empty(),
+        true);
 
-    //
-    // Consider permanent and eligible bindings.
-    //
-    var roleBindings = findRoleBindings(
-      analysisResult,
-      condition -> condition == null ||
-        JitConstraints.isJitAccessConstraint(condition) ||
-        JitConstraints.isMultiPartyApprovalConstraint(condition),
-      evalResult -> evalResult == null ||
-        "TRUE".equalsIgnoreCase(evalResult) ||
-        "CONDITIONAL".equalsIgnoreCase(evalResult));
+      //
+      // Consider permanent and eligible bindings.
+      //
+      var roleBindings = findRoleBindings(
+        analysisResult,
+        condition -> condition == null ||
+          JitConstraints.isJitAccessConstraint(condition) ||
+          JitConstraints.isMultiPartyApprovalConstraint(condition),
+        evalResult -> evalResult == null ||
+          "TRUE".equalsIgnoreCase(evalResult) ||
+          "CONDITIONAL".equalsIgnoreCase(evalResult));
 
-    var projectIds = roleBindings
-      .stream()
-      .map(b -> ProjectId.fromFullResourceName(b.fullResourceName))
-      .collect(Collectors.toSet());
+      var projectIds = roleBindings
+        .stream()
+        .map(b -> ProjectId.fromFullResourceName(b.fullResourceName))
+        .collect(Collectors.toSet());
+      
+      if (options.requiredProjectTagPath == null || options.requiredProjectTagPath.isBlank()) return projectIds;
 
-    if (options.requiredProjectTagPath == null || options.requiredProjectTagPath.isBlank()) return projectIds;
-
-    /**
-     * We want to filter tags last, since we need to call the ResourceManager API once for each project.
-     * Since we cannot use methods with checked exceptions in predicates/lambdas without
-     * catching them within the predicate, we need this workaround.
-     */ 
-    Set<ProjectId> filtered = new HashSet<>(projectIds.size());
-    for (ProjectId p : projectIds) {
-      var tags = resourceManagerAdapter.getProjectEffectiveTags(p.getFullResourceName());
-      if (tags.stream().anyMatch(t -> t.getNamespacedTagValue().equals(options.requiredProjectTagPath))) {
-        filtered.add(p);
+        /**
+         * We want to filter tags last, since we need to call the ResourceManager API once for each project.
+         * Since we cannot use methods with checked exceptions in predicates/lambdas without
+         * catching them within the predicate, we need this workaround.
+         */ 
+        Set<ProjectId> filtered = new HashSet<>(projectIds.size());
+        for (ProjectId p : projectIds) {
+          var tags = resourceManagerAdapter.getProjectEffectiveTags(p.getFullResourceName());
+          if (tags.stream().anyMatch(t -> t.getNamespacedTagValue().equals(options.requiredProjectTagPath))) {
+            filtered.add(p);
+          }
+        }
+        return filtered;
       }
+    else {
+      // Used as alternative option if availableProjectsQuery is set and the main approach with Asset API is not working fast enough.
+      return new HashSet<>(resourceManagerAdapter.searchProjectIds(this.options.availableProjectsQuery));
     }
-    return filtered;
   }
 
   /**
@@ -382,16 +388,22 @@ public class RoleDiscoveryService {
     public final String requiredProjectTagPath;
 
     /**
-     * Search inherited IAM policies
+     * In some cases listing all available projects is not working fast enough and times out,
+     * so this method is available as alternative.
+     * The format is the same as Google Resource Manager API requires for the query parameter, for example:
+     * - parent:folders/{folder_id}
+     * - parent:organizations/{organization_id}
+     * (https://cloud.google.com/resource-manager/reference/rest/v3/projects/search#query-parameters)
      */
-    public Options(String scope, String requiredProjectTagPath) {
-      this.scope = scope;
-      this.requiredProjectTagPath = requiredProjectTagPath;
-    }
+    public final String availableProjectsQuery;
 
-    public Options(String scope) {
+    /**
+     * Search inherited IAM policies
+     */   
+    public Options(String scope, String availableProjectsQuery, String requiredProjectTagPath) {
       this.scope = scope;
-      this.requiredProjectTagPath = null;
+      this.availableProjectsQuery = availableProjectsQuery;
+      this.requiredProjectTagPath = requiredProjectTagPath;
     }
   }
 }

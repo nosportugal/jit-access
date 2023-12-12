@@ -24,12 +24,12 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.google.solutions</groupId>
   <artifactId>jitaccess</artifactId>
-  <version>1.4.1</version>
+  <version>1.5.0</version>
   <properties>
-    <surefire-plugin.version>3.2.1</surefire-plugin.version>
+    <surefire-plugin.version>3.2.2</surefire-plugin.version>
     <maven.compiler.target>17</maven.compiler.target>
     <maven.compiler.source>17</maven.compiler.source>
-    <quarkus.version>3.5.0</quarkus.version>
+    <quarkus.version>3.6.0</quarkus.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
@@ -62,12 +62,17 @@
     <dependency>
       <groupId>com.google.apis</groupId>
       <artifactId>google-api-services-cloudresourcemanager</artifactId>
-      <version>v3-rev20230806-2.0.0</version>
+      <version>v3-rev20231022-2.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.apis</groupId>
       <artifactId>google-api-services-cloudasset</artifactId>
-      <version>v1-rev20231013-2.0.0</version>
+      <version>v1-rev20231111-2.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.apis</groupId>
+      <artifactId>google-api-services-pubsub</artifactId>
+      <version>v1-rev20230830-2.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.apis</groupId>
@@ -78,6 +83,11 @@
       <groupId>com.google.apis</groupId>
       <artifactId>google-api-services-secretmanager</artifactId>
       <version>v1-rev20230804-2.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>2.10.1</version>
     </dependency>
     <dependency>
       <groupId>com.sun.mail</groupId>
@@ -104,7 +114,7 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-      <version>5.7.0</version>
+      <version>5.8.0</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
