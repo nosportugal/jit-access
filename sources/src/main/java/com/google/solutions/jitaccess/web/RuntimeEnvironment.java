@@ -28,24 +28,35 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonObjectParser;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.GenericData;
+import com.google.api.services.cloudasset.v1.model.Asset;
 import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
-import com.google.common.base.Strings;
 import com.google.solutions.jitaccess.core.ApplicationVersion;
-import com.google.solutions.jitaccess.core.adapters.*;
-import com.google.solutions.jitaccess.core.data.Topic;
-import com.google.solutions.jitaccess.core.data.UserId;
-import com.google.solutions.jitaccess.core.services.*;
-
-import jakarta.enterprise.context.ApplicationScoped;
+import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.catalog.RegexJustificationPolicy;
+import com.google.solutions.jitaccess.core.catalog.TokenSigner;
+import com.google.solutions.jitaccess.core.catalog.project.AssetInventoryRepository;
+import com.google.solutions.jitaccess.core.catalog.project.MpaProjectRoleCatalog;
+import com.google.solutions.jitaccess.core.catalog.project.PolicyAnalyzerRepository;
+import com.google.solutions.jitaccess.core.catalog.project.ProjectRoleRepository;
+import com.google.solutions.jitaccess.core.clients.*;
+import com.google.solutions.jitaccess.core.notifications.MailNotificationService;
+import com.google.solutions.jitaccess.core.notifications.NotificationService;
+import com.google.solutions.jitaccess.core.notifications.PubSubNotificationService;
+import com.google.solutions.jitaccess.web.rest.ApiResource;
+import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriInfo;
+
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -53,7 +64,7 @@ import java.util.stream.Stream;
 /**
  * Provides access to runtime configuration (AppEngine, local). To be injected using CDI.
  */
-@ApplicationScoped
+@Singleton
 public class RuntimeEnvironment {
   private static final String CONFIG_IMPERSONATE_SA = "jitaccess.impersonateServiceAccount";
   private static final String CONFIG_DEBUG_MODE = "jitaccess.debug";
@@ -133,17 +144,37 @@ public class RuntimeEnvironment {
         this.projectId = (String) projectMetadata.get("projectId");
         this.projectNumber = projectMetadata.get("numericProjectId").toString();
 
-        this.applicationCredentials = GoogleCredentials.getApplicationDefault();
-        this.applicationPrincipal = new UserId(((ComputeEngineCredentials) this.applicationCredentials).getAccount());
+        var defaultCredentials = (ComputeEngineCredentials)GoogleCredentials.getApplicationDefault();
+        this.applicationPrincipal = new UserId(defaultCredentials.getAccount());
+
+        if (defaultCredentials.getScopes().containsAll(this.configuration.getRequiredOauthScopes())) {
+          //
+          // Default credential has all the right scopes, use it as-is.
+          //
+          this.applicationCredentials = defaultCredentials;
+        }
+        else {
+          //
+          // Extend the set of scopes to include required non-cloud APIs by
+          // letting the service account impersonate itself.
+          //
+          this.applicationCredentials = ImpersonatedCredentials.create(
+            defaultCredentials,
+            this.applicationPrincipal.email,
+            null,
+            this.configuration.getRequiredOauthScopes().stream().toList(),
+            0);
+        }
 
         logAdapter
           .newInfoEntry(
             LogEvents.RUNTIME_STARTUP,
-            String.format("Running in project %s (%s) as %s, version %s",
+            String.format("Running in project %s (%s) as %s, version %s, using %s catalog",
               this.projectId,
               this.projectNumber,
               this.applicationPrincipal,
-              ApplicationVersion.VERSION_STRING))
+              ApplicationVersion.VERSION_STRING,
+              this.configuration.catalog.getValue()))
           .write();
       }
       catch (IOException e) {
@@ -169,19 +200,15 @@ public class RuntimeEnvironment {
         if (impersonateServiceAccount != null && !impersonateServiceAccount.isEmpty()) {
           //
           // Use the application default credentials (ADC) to impersonate a
-          // service account. This can be used when using user credentials as ADC.
+          // service account. This step is necessary to ensure we have a
+          // credential for the right set of scopes, and that we're not running
+          // with end-user credentials.
           //
           this.applicationCredentials = ImpersonatedCredentials.create(
             defaultCredentials,
             impersonateServiceAccount,
             null,
-            Stream.of(
-                ResourceManagerAdapter.OAUTH_SCOPE,
-                AssetInventoryAdapter.OAUTH_SCOPE,
-                IamCredentialsAdapter.OAUTH_SCOPE,
-                SecretManagerAdapter.OAUTH_SCOPE)
-              .distinct()
-              .collect(Collectors.toList()),
+            this.configuration.getRequiredOauthScopes().stream().toList(),
             0);
 
           //
@@ -259,28 +286,7 @@ public class RuntimeEnvironment {
   }
 
   @Produces
-  public RoleDiscoveryService.Options getRoleDiscoveryServiceOptions() {
-    return new RoleDiscoveryService.Options(
-            this.configuration.scope.getValue(),
-            this.configuration.availableProjectsQuery.isValid() ?
-                this.configuration.availableProjectsQuery.getValue() : null,
-            this.configuration.requiredProjectTagPath.isValid() ?
-                this.configuration.requiredProjectTagPath.getValue() : null
-    );
-  }
-
-  @Produces
-  public RoleActivationService.Options getRoleActivationServiceOptions() {
-    return new RoleActivationService.Options(
-      this.configuration.justificationHint.getValue(),
-      Pattern.compile(this.configuration.justificationPattern.getValue()),
-      this.configuration.activationTimeout.getValue(),
-      this.configuration.minNumberOfReviewersPerActivationRequest.getValue(),
-      this.configuration.maxNumberOfReviewersPerActivationRequest.getValue());
-  }
-
-  @Produces
-  public ActivationTokenService.Options getTokenServiceOptions() {
+  public TokenSigner.Options getTokenServiceOptions() {
     //
     // NB. The clock for activations "starts ticking" when the activation was
     // requested. The time allotted for reviewers to approve the request
@@ -290,21 +296,21 @@ public class RuntimeEnvironment {
       this.configuration.activationRequestTimeout.getValue().getSeconds(),
       this.configuration.activationTimeout.getValue().getSeconds()));
 
-    return new ActivationTokenService.Options(
+    return new TokenSigner.Options(
       applicationPrincipal,
       effectiveRequestTimeout);
   }
 
   @Produces
-  @ApplicationScoped
+  @Singleton
   public NotificationService getPubSubNotificationService(
-    PubSubAdapter pubSubAdapter
+    PubSubClient pubSubClient
   ) {
     if (this.configuration.topicName.isValid()) {
       return new PubSubNotificationService(
-        pubSubAdapter,
+        pubSubClient,
         new PubSubNotificationService.Options(
-          new Topic(this.projectId, this.configuration.topicName.getValue())));
+          new PubSubTopic(this.projectId, this.configuration.topicName.getValue())));
     }
     else {
       return new NotificationService.SilentNotificationService(isDebugModeEnabled());
@@ -312,16 +318,16 @@ public class RuntimeEnvironment {
   }
 
   @Produces
-  @ApplicationScoped
+  @Singleton
   public NotificationService getEmailNotificationService(
-    SecretManagerAdapter secretManagerAdapter
+    SecretManagerClient secretManagerClient
   ) {
     //
     // Configure SMTP if possible, and fall back to a fail-safe
     // configuration if the configuration is incomplete.
     //
     if (this.configuration.isSmtpConfigured()) {
-      var options = new SmtpAdapter.Options(
+      var options = new SmtpClient.Options(
         this.configuration.smtpHost.getValue(),
         this.configuration.smtpPort.getValue(),
         this.configuration.smtpSenderName.getValue(),
@@ -345,7 +351,7 @@ public class RuntimeEnvironment {
       }
 
       return new MailNotificationService(
-        new SmtpAdapter(secretManagerAdapter, options),
+        new SmtpClient(secretManagerClient, options),
         new MailNotificationService.Options(this.configuration.timeZoneForNotifications.getValue()));
     }
     else {
@@ -356,7 +362,7 @@ public class RuntimeEnvironment {
   @Produces
   public ApiResource.Options getApiOptions() {
     return new ApiResource.Options(
-      this.configuration.maxNumberOfJitRolesPerSelfApproval.getValue());
+      this.configuration.maxNumberOfEntitlementsPerSelfApproval.getValue());
   }
 
   @Produces
@@ -365,5 +371,54 @@ public class RuntimeEnvironment {
       this.configuration.backendConnectTimeout.getValue(),
       this.configuration.backendReadTimeout.getValue(),
       this.configuration.backendWriteTimeout.getValue());
+  }
+
+  @Produces
+  public RegexJustificationPolicy.Options getRegexJustificationPolicyOptions() {
+    return new RegexJustificationPolicy.Options(
+      this.configuration.justificationHint.getValue(),
+      Pattern.compile(this.configuration.justificationPattern.getValue()));
+  }
+
+  @Produces
+  public MpaProjectRoleCatalog.Options getIamPolicyCatalogOptions() {
+    return new MpaProjectRoleCatalog.Options(
+      this.configuration.availableProjectsQuery.isValid()
+        ? this.configuration.availableProjectsQuery.getValue()
+        : null,
+      this.configuration.activationTimeout.getValue(),
+      this.configuration.minNumberOfReviewersPerActivationRequest.getValue(),
+      this.configuration.maxNumberOfReviewersPerActivationRequest.getValue());
+  }
+
+  @Produces
+  public DirectoryGroupsClient.Options getDirectoryGroupsClientOptions() {
+    return new DirectoryGroupsClient.Options(
+      this.configuration.customerId.getValue());
+  }
+
+  @Produces
+  @Singleton
+  public ProjectRoleRepository getProjectRoleRepository(
+    Executor executor,
+    Instance<DirectoryGroupsClient> groupsClient,
+    PolicyAnalyzerClient policyAnalyzerClient,
+    ResourceManagerClient resourceManagerClient
+  ) {
+    switch (this.configuration.catalog.getValue()) {
+      case ASSETINVENTORY:
+        return new AssetInventoryRepository(
+          executor,
+          groupsClient.get(),
+          (AssetInventoryClient)policyAnalyzerClient,
+          new AssetInventoryRepository.Options(this.configuration.scope.getValue()));
+
+      case POLICYANALYZER:
+      default:
+        return new PolicyAnalyzerRepository(
+          policyAnalyzerClient,
+          resourceManagerClient,
+          new PolicyAnalyzerRepository.Options(this.configuration.scope.getValue(), this.configuration.requiredProjectTagPath.getValue()));
+    }
   }
 }
