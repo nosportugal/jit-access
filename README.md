@@ -2,6 +2,8 @@
 
 Just-In-Time Access is an open source application that lets you implement just-in-time privileged access to Google Cloud resources. 
 
+[<img src="doc/documentation.png">](https://googlecloudplatform.github.io/jit-access/)
+
 Just-In-Time Access works by introducing the notion of _eligible role bindings_ to Cloud IAM. Unlike a [regular
 IAM role binding](https://cloud.google.com/iam/docs/overview#cloud-iam-policy), 
 an eligible role binding doesn't grant the user access to a project yet:
@@ -49,7 +51,7 @@ to the project.
 
 
 
-<img src='doc/images/pix.gif' width='100%' height='1'>
+<img src='doc/pix.gif' width='100%' height='1'>
 
 
 ## Request approval to activate a role
@@ -72,7 +74,7 @@ and notifies you via email.
 
 
 
-<img src='doc/images/pix.gif' width='100%' height='1'>
+<img src='doc/pix.gif' width='100%' height='1'>
 
 
 ## Grant access
@@ -90,7 +92,7 @@ You can create the binding for a specific project, or for an entire folder. Inst
 access to individual users, you can also use groups.
 
 
-<img src='doc/images/pix.gif' width='100%' height='1'>
+<img src='doc/pix.gif' width='100%' height='1'>
 
 
 ## Audit access
@@ -107,13 +109,15 @@ For each activation, the Just-In-Time application writes an audit log entry that
 * the project and role for which access was requested
 * the justification provided by the user
 
-<img src='doc/images/pix.gif' width='100%' height='1'>
+<img src='doc/pix.gif' width='100%' height='1'>
 
 
-## Deploying the application
+## Deploy the application
 
 Just-In-Time Access runs on App Engine (standard) and Cloud Run. The application
-is stateless and uses [Identity-Aware-Proxy](https://cloud.google.com/iap/docs/concepts-overview) for authentication and authorization, and the [Policy Analyzer API](https://cloud.google.com/policy-intelligence/docs/analyze-iam-policies) and [IAM API](https://cloud.google.com/iam/docs/reference/rest) to manage access.
+is stateless and uses [Identity-Aware-Proxy](https://cloud.google.com/iap/docs/concepts-overview) for authentication and authorization, 
+and the [Cloud Asset API](https://cloud.google.com/asset-inventory/docs/reference/rest) and 
+[IAM API](https://cloud.google.com/iam/docs/reference/rest) to manage access.
 
 For detailed instructions on deploying Just-In-Time Access, see [Manage just-in-time privileged access to projects ](https://cloud.google.com/architecture/manage-just-in-time-privileged-access-to-project) on the Google Cloud website.
 
