@@ -1,14 +1,30 @@
+#! more info here: https://github.com/actions/labeler
 documentation:
-- "**/*.md"
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['**/*.md']
+
+terraform:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['**/*.tf']
+
+k8s:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['k8s/**/*', 'modules/**/k8s/**/*']
+
+workflows:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['.github/**/*', 'CODEOWNERS', '.*.*', 'atlantis.yaml']
 
 prod:
-- "**/*_p_*/**/*.tf"
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['**/*_p_*/**/*.tf']
 
 non-prod:
-- "**/*_d_*/**/*.tf"
-- "**/*_np_*/**/*.tf"
-
-config:
-- .github/**/*
-- CODEOWNERS
-- .*.*
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['**/*_d_*/**/*.tf', '**/*_np_*/**/*.tf']

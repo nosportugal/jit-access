@@ -22,7 +22,7 @@ steps:
       - |
         gcloud artifacts docker images scan ${_IMAGE_NAME} \
         --format='value(response.scan)' > /workspace/scan_id.txt
-    wait-for: ["build"]
+    waitFor: ["build"]
 
   # Check vulnerability severity
   - id: "severity-check"
@@ -36,21 +36,21 @@ steps:
         --format='value(vulnerability.effectiveSeverity,vulnerability.fixAvailable)' | if  grep -Pq "${_SEVERITY}\tTrue"; \
         then echo 'Failed vulnerability check' && exit 1; \
         else echo "No fixable critical or high severity found" && exit 0; fi
-    wait-for: ["scan"]
+    waitFor: ["scan"]
 
   # Retag image to match release tag
   - id: "retag"
     dir: "sources"
     name: "gcr.io/cloud-builders/docker"
     args: ["tag", "${_IMAGE_NAME}", "${_IMAGE_NAME}:${TAG_NAME}"]
-    wait-for: ["severity-check"]
+    waitFor: ["severity-check"]
 
   # Push to artifact registry
   - id: "push"
     dir: "sources"
     name: "gcr.io/cloud-builders/docker"
     args: ["push", "${_IMAGE_NAME}:${TAG_NAME}"]
-    wait-for: ["retag"]
+    waitFor: ["retag"]
 
   # Sign image
   - id: "create-attestation"
@@ -64,7 +64,7 @@ steps:
         --attestor="${_ATTESTOR_ID}" \
         --artifact-url="$(docker inspect "${_IMAGE_NAME}:${TAG_NAME}" --format='{{index .RepoDigests 0}}')" \
         --keyversion="${_KEY_VERSION_ID}"
-    wait-for: ["push"]
+    waitFor: ["push"]
 
 images:
   - "${_IMAGE_NAME}:${TAG_NAME}"
