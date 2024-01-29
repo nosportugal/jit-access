@@ -3,7 +3,7 @@
 substitutions:
   _IMAGE_NAME: "${LOCATION}-docker.pkg.dev/${PROJECT_ID}/registry/${REPO_NAME}"
   _SEVERITY: '(CRITICAL|HIGH)'
-
+timeout: 900s
 steps:
   # Build image
   - id: "build"
