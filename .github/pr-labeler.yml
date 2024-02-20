@@ -28,3 +28,105 @@ non-prod:
 - any:
   - changed-files:
     - any-glob-to-any-file: ['**/*_d_*/**/*.tf', '**/*_np_*/**/*.tf']
+
+aws:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['secrets-aws.tf']
+
+gcp:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['secrets-gcp.tf']
+
+azure:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['secrets-azure.tf']
+
+nos-secrets:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['secrets-general.tf', 'secrets-nos.tf']
+
+subscriptions:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['tf-azure-subscription-factory/**/*.tf']
+
+org:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['tf-azure-org/**/*.tf']
+
+teams:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['teams.tf']
+
+new-user:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users.tf', 'users-*.tf']
+
+department/ccoe:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-ccoe.tf']
+
+department/crm:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-crm.tf']
+
+department/cte:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-cte.tf']
+
+department/fiber-centric:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-fiber-centric.tf']
+
+department/information-services:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-information-services.tf']
+
+department/innovation-services:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-innovation-services.tf']
+
+department/mci:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-mci.tf']
+
+department/mobile-centric:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-mobile-centric.tf']
+
+department/operations:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-operations.tf']
+
+department/other:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-other.tf']
+
+department/qtp:
+- any:
+  - changed-files:
+    - any-glob-to-any-file: ['users-qtp.tf']
+
+# you can also define other labels
+#
+# gke:
+# - any:
+#   - changed-files:
+#     - any-glob-to-any-file: ['k8s/**/*', 'modules/**/k8s/**/*']
