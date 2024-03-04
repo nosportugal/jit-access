@@ -28,8 +28,6 @@ import com.google.solutions.jitaccess.core.*;
 import com.google.solutions.jitaccess.core.catalog.*;
 import com.google.solutions.jitaccess.core.clients.IamTemporaryAccessConditions;
 import com.google.solutions.jitaccess.core.clients.ResourceManagerClient;
-
-import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.Dependent;
 
 import java.io.IOException;
@@ -99,7 +97,6 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
   // -------------------------------------------------------------------------
 
   @Override
-  @WithSpan
   protected void provisionAccess(
     JitActivationRequest<ProjectRoleBinding> request
   ) throws AccessException, AlreadyExistsException, IOException {
@@ -123,7 +120,6 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
   }
 
   @Override
-  @WithSpan
   protected void provisionAccess(
     UserId approvingUser,
     MpaActivationRequest<ProjectRoleBinding> request
@@ -155,7 +151,7 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
   }
 
   @Override
-  @WithSpan
+
   public JsonWebTokenConverter<MpaActivationRequest<ProjectRoleBinding>> createTokenConverter() {
     return new JsonWebTokenConverter<>() {
       @Override

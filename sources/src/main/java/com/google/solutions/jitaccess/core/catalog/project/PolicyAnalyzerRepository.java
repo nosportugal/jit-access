@@ -159,7 +159,7 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
      * We want to filter tags last, since we need to call the ResourceManager API once for each project.
      * Since we cannot use methods with checked exceptions in predicates/lambdas without
      * catching them within the predicate, we need this workaround.
-     */ 
+     */
     SortedSet<ProjectId> filtered = new TreeSet<>();
     for (ProjectId p : projectIds) {
       var tags = resourceManagerClient.getProjectEffectiveTags(p.getFullResourceName());
