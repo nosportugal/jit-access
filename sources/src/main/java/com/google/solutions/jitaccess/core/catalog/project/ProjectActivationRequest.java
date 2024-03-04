@@ -23,7 +23,6 @@ package com.google.solutions.jitaccess.core.catalog.project;
 
 import com.google.solutions.jitaccess.core.ProjectId;
 import com.google.solutions.jitaccess.core.catalog.ActivationRequest;
-
 import java.util.stream.Collectors;
 
 class ProjectActivationRequest {

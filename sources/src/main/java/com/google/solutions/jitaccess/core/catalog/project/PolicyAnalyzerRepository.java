@@ -34,8 +34,6 @@ import com.google.solutions.jitaccess.core.catalog.EntitlementSet;
 import com.google.solutions.jitaccess.core.clients.PolicyAnalyzerClient;
 import com.google.solutions.jitaccess.core.clients.ResourceManagerClient;
 
-import io.opentelemetry.instrumentation.annotations.WithSpan;
-
 import java.io.IOException;
 import java.util.*;
 import java.util.function.Predicate;
@@ -67,7 +65,6 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
     this.options = options;
   }
 
-  @WithSpan
   static List<RoleBinding> findRoleBindings(
     IamPolicyAnalysis analysisResult,
     Predicate<Expr> conditionPredicate,
@@ -109,7 +106,6 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
   //---------------------------------------------------------------------------
 
   @Override
-  @WithSpan
   public SortedSet<ProjectId> findProjectsWithEntitlements(
     UserId user
   ) throws AccessException, IOException {
@@ -171,7 +167,6 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
   }
 
   @Override
-  @WithSpan
   public EntitlementSet<ProjectRoleBinding> findEntitlements(
     UserId user,
     ProjectId projectId,
@@ -291,7 +286,6 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
   }
 
   @Override
-  @WithSpan
   public Set<UserId> findEntitlementHolders(
     ProjectRoleBinding roleBinding,
     ActivationType activationType
