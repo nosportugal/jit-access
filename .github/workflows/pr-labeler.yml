@@ -1,17 +1,11 @@
-name: Pull request labeler
+#! more info here: https://github.com/actions/labeler
+name: Pull Request labeler
 on:
-  # workflow triggers
-  pull_request_target:
-  workflow_dispatch:
+  pull_request:
+    types: [opened]
 
 jobs:
   pr-labels:
-    permissions:
-      contents: read
-      pull-requests: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/labeler@v5
-        with:
-          repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          configuration-path: ${{ '.github/pr-labeler.yml' }}
+    uses: nosportugal/github-workflows-ccoe/.github/workflows/pr-labeler.yml@main
+    with:
+      configuration-path: .github/pr-labeler.yml
