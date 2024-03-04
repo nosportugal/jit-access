@@ -357,7 +357,7 @@ public class ResourceManagerClient {
       }
     }
   }
-  
+
   /**
    * Gets the effective tags for a project.
    * @param projectResourceName - full resource name of the project
@@ -368,7 +368,7 @@ public class ResourceManagerClient {
     String projectResourceName
     ) throws NotAuthenticatedException, IOException {
     try
-    {      
+    {
       var response = createClient()
         .effectiveTags()
         .list()

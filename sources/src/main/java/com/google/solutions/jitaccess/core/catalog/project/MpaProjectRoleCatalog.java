@@ -29,8 +29,6 @@ import com.google.solutions.jitaccess.core.ProjectId;
 import com.google.solutions.jitaccess.core.UserId;
 import com.google.solutions.jitaccess.core.catalog.*;
 import com.google.solutions.jitaccess.core.clients.ResourceManagerClient;
-
-import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.inject.Singleton;
 
 import java.io.IOException;
@@ -90,7 +88,6 @@ public class MpaProjectRoleCatalog extends ProjectRoleCatalog {
     }
   }
 
-  @WithSpan
   void verifyUserCanActivateEntitlements(
     UserId user,
     ProjectId projectId,
@@ -139,7 +136,6 @@ public class MpaProjectRoleCatalog extends ProjectRoleCatalog {
   //---------------------------------------------------------------------------
 
   @Override
-  @WithSpan
   public SortedSet<ProjectId> listProjects(
     UserId user
   ) throws AccessException, IOException {
@@ -164,7 +160,6 @@ public class MpaProjectRoleCatalog extends ProjectRoleCatalog {
   }
 
   @Override
-  @WithSpan
   public EntitlementSet<ProjectRoleBinding> listEntitlements(
     UserId user,
     ProjectId projectId
@@ -177,7 +172,6 @@ public class MpaProjectRoleCatalog extends ProjectRoleCatalog {
   }
 
   @Override
-  @WithSpan
   public SortedSet<UserId> listReviewers(
     UserId requestingUser,
     ProjectRoleBinding entitlement
@@ -207,7 +201,6 @@ public class MpaProjectRoleCatalog extends ProjectRoleCatalog {
   }
 
   @Override
-  @WithSpan
   public void verifyUserCanRequest(
     ActivationRequest<ProjectRoleBinding> request
   ) throws AccessException, IOException {
@@ -226,7 +219,6 @@ public class MpaProjectRoleCatalog extends ProjectRoleCatalog {
   }
 
   @Override
-  @WithSpan
   public void verifyUserCanApprove(
     UserId approvingUser,
     MpaActivationRequest<ProjectRoleBinding> request

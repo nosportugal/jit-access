@@ -124,7 +124,6 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
 
       // Only bindings that apply to the user.
       .filter(binding -> principalSetForUser.isMember(binding))
-
       .collect(Collectors.toList());
     return allBindings;
   }

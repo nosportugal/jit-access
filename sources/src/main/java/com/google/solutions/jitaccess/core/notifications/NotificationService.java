@@ -30,15 +30,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import io.opentelemetry.instrumentation.annotations.WithSpan;
-
 /**
  * Service for notifying users about activation requests.
  */
 @Singleton
 public abstract class NotificationService {
-
-  @WithSpan
   public abstract void sendNotification(Notification notification) throws NotificationException;
 
   public abstract boolean canSendNotifications();
@@ -63,7 +59,6 @@ public abstract class NotificationService {
       return false;
     }
 
-    @WithSpan
     @Override
     public void sendNotification(Notification notification) {
       if (this.printToConsole) {
