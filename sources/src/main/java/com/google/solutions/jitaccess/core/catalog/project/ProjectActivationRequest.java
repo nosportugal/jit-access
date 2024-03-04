@@ -24,8 +24,6 @@ package com.google.solutions.jitaccess.core.catalog.project;
 import com.google.solutions.jitaccess.core.ProjectId;
 import com.google.solutions.jitaccess.core.catalog.ActivationRequest;
 
-import io.opentelemetry.instrumentation.annotations.WithSpan;
-
 import java.util.stream.Collectors;
 
 class ProjectActivationRequest {
@@ -35,7 +33,6 @@ class ProjectActivationRequest {
   /**
    * @return common project ID for all requested entitlements.
    */
-  @WithSpan
   static ProjectId projectId(ActivationRequest<ProjectRoleBinding> request) {
     var projects = request.entitlements().stream()
       .map(e -> e.roleBinding().fullResourceName())
