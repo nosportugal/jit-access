@@ -22,7 +22,8 @@
 package com.google.solutions.jitaccess.core.catalog;
 
 import com.google.common.base.Preconditions;
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -34,21 +35,21 @@ import java.util.stream.Collectors;
  * Represents a request for activating one or more entitlements.
  */
 public abstract class ActivationRequest<TEntitlementId extends EntitlementId> {
-  private final ActivationId id;
-  private final Instant startTime;
-  private final Duration duration;
-  private final UserId requestingUser;
-  private final Set<TEntitlementId> entitlements;
-  private final String justification;
+  private final @NotNull ActivationId id;
+  private final @NotNull Instant startTime;
+  private final @NotNull Duration duration;
+  private final @NotNull UserId requestingUser;
+  private final @NotNull Set<TEntitlementId> entitlements;
+  private final @NotNull String justification;
 
   protected ActivationRequest(
-    ActivationId id,
-    UserId requestingUser,
-    Set<TEntitlementId> entitlements,
-    String justification,
-    Instant startTime,
-    Duration duration
-    ) {
+    @NotNull ActivationId id,
+    @NotNull UserId requestingUser,
+    @NotNull Set<TEntitlementId> entitlements,
+    @NotNull String justification,
+    @NotNull Instant startTime,
+    @NotNull Duration duration
+  ) {
 
     Preconditions.checkNotNull(id, "id");
     Preconditions.checkNotNull(requestingUser, "user");
@@ -76,53 +77,53 @@ public abstract class ActivationRequest<TEntitlementId extends EntitlementId> {
   /**
    * @return unique ID of the request.
    */
-  public ActivationId id() {
+  public @NotNull ActivationId id() {
     return this.id;
   }
 
   /**
    * @return start time for requested access.
    */
-  public Instant startTime() {
+  public @NotNull Instant startTime() {
     return this.startTime;
   }
 
   /**
    * @return duration of requested activation.
    */
-  public Duration duration() {
+  public @NotNull Duration duration() {
     return this.duration;
   }
 
   /**
    * @return end time for requested access.
    */
-  public Instant endTime() {
+  public @NotNull Instant endTime() {
     return this.startTime.plus(this.duration);
   }
 
   /**
    * @return user that requested access.
    */
-  public UserId requestingUser() {
+  public @NotNull UserId requestingUser() {
     return this.requestingUser;
   }
 
   /**
    * @return one or more entitlements.
    */
-  public Collection<TEntitlementId> entitlements() {
+  public @NotNull Collection<TEntitlementId> entitlements() {
     return this.entitlements;
   }
 
   /**
    * @return user-provided justification for the request.
    */
-  public String justification() {
+  public @NotNull String justification() {
     return this.justification;
   }
 
-  public abstract ActivationType type();
+  public abstract @NotNull ActivationType type();
 
   @Override
   public String toString() {

@@ -21,9 +21,12 @@
 
 package com.google.solutions.jitaccess.core.catalog;
 
+import com.google.solutions.jitaccess.cel.TimeSpan;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.TreeSet;
 
@@ -40,8 +43,7 @@ public class TestEntitlement {
     var ent = new Entitlement<SampleEntitlementId>(
       new SampleEntitlementId("1"),
       "Sample entitlement",
-      ActivationType.JIT,
-      Entitlement.Status.AVAILABLE);
+      ActivationType.JIT);
 
     assertEquals("Sample entitlement", ent.toString());
   }
@@ -51,44 +53,29 @@ public class TestEntitlement {
   // -------------------------------------------------------------------------
 
   @Test
-  public void compareToOrdersByStatusThenName() {
-    var availableA = new Entitlement<SampleEntitlementId>(
+  public void compareToOrdersById() {
+    var a = new Entitlement<SampleEntitlementId>(
       new SampleEntitlementId("A"),
       "Entitlement A",
-      ActivationType.JIT,
-      Entitlement.Status.AVAILABLE);
-    var activeA = new Entitlement<SampleEntitlementId>(
-      new SampleEntitlementId("A"),
-      "Entitlement A",
-      ActivationType.JIT,
-      Entitlement.Status.ACTIVE);
-    var pendingA = new Entitlement<SampleEntitlementId>(
-      new SampleEntitlementId("A"),
-      "Entitlement A",
-      ActivationType.JIT,
-      Entitlement.Status.ACTIVATION_PENDING);
+      ActivationType.JIT);
 
-    var availableB = new Entitlement<SampleEntitlementId>(
+    var b = new Entitlement<SampleEntitlementId>(
       new SampleEntitlementId("B"),
       "Entitlement B",
-      ActivationType.JIT,
-      Entitlement.Status.AVAILABLE);
+      ActivationType.MPA);
 
-    var entitlements = List.of(
-      availableB,
-      pendingA,
-      availableA,
-      activeA);
+    var c = new Entitlement<SampleEntitlementId>(
+      new SampleEntitlementId("C"),
+      "Entitlement C",
+      ActivationType.MPA);
+
+    var entitlements = List.of(c, b, a);
 
     var sorted = new TreeSet<Entitlement<SampleEntitlementId>>();
     sorted.addAll(entitlements);
 
     Assertions.assertIterableEquals(
-      List.of(
-        availableA,
-        availableB,
-        activeA,
-        pendingA),
+      List.of(a, b, c),
       sorted);
   }
 }

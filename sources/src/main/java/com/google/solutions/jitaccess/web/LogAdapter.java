@@ -24,8 +24,10 @@ package com.google.solutions.jitaccess.web;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
-import com.google.solutions.jitaccess.web.auth.UserPrincipal;
+import com.google.solutions.jitaccess.web.iap.IapPrincipal;
 import jakarta.enterprise.context.RequestScoped;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,12 +39,12 @@ import java.util.function.Function;
  */
 @RequestScoped
 public class LogAdapter {
-  private final Appendable output;
+  private final @NotNull Appendable output;
 
   private String traceId;
-  private UserPrincipal principal;
+  private IapPrincipal principal;
 
-  public LogAdapter(Appendable output) {
+  public LogAdapter(@NotNull Appendable output) {
     Preconditions.checkNotNull(output);
     this.output = output;
   }
@@ -61,23 +63,23 @@ public class LogAdapter {
   /**
    * Set principal for current request.
    */
-  public void setPrincipal(UserPrincipal principal) {
+  public void setPrincipal(IapPrincipal principal) {
     this.principal = principal;
   }
 
-  public LogEntry newInfoEntry(String eventId, String message) {
+  public @NotNull LogEntry newInfoEntry(String eventId, String message) {
     return new LogEntry("INFO", eventId, message, this.principal, this.traceId);
   }
 
-  public LogEntry newWarningEntry(String eventId, String message) {
+  public @NotNull LogEntry newWarningEntry(String eventId, String message) {
     return new LogEntry("WARNING", eventId, message, this.principal, this.traceId);
   }
 
-  public LogEntry newErrorEntry(String eventId, String message) {
+  public @NotNull LogEntry newErrorEntry(String eventId, String message) {
     return new LogEntry("ERROR", eventId, message, this.principal, this.traceId);
   }
 
-  public LogEntry newErrorEntry(String eventId, String message, Exception e) {
+  public @NotNull LogEntry newErrorEntry(String eventId, String message, @NotNull Exception e) {
     return new LogEntry(
       "ERROR",
       eventId,
@@ -101,7 +103,7 @@ public class LogAdapter {
     private final String message;
 
     @JsonProperty("logging.googleapis.com/labels")
-    private final Map<String, String> labels;
+    private final @NotNull Map<String, String> labels;
 
     @JsonProperty("logging.googleapis.com/trace")
     private final String traceId;
@@ -110,7 +112,7 @@ public class LogAdapter {
       String severity,
       String eventId,
       String message,
-      UserPrincipal principal,
+      @Nullable IapPrincipal principal,
       String traceId
     ) {
       this.severity = severity;
@@ -121,22 +123,22 @@ public class LogAdapter {
       this.labels.put("event", eventId);
 
       if (principal != null) {
-        this.labels.put("user", principal.getId().email);
-        this.labels.put("user_id", principal.getId().id);
-        this.labels.put("device_id", principal.getDevice().deviceId());
+        this.labels.put("user", principal.email().email);
+        this.labels.put("user_id", principal.subjectId());
+        this.labels.put("device_id", principal.device().deviceId());
         this.labels.put("device_access_levels",
-          String.join(", ", principal.getDevice().accessLevels()));
+          String.join(", ", principal.device().accessLevels()));
       }
     }
 
-    public LogEntry addLabel(String label, String value) {
+    public @NotNull LogEntry addLabel(String label, String value) {
       assert !this.labels.containsKey(label);
 
       this.labels.put(label, value);
       return this;
     }
 
-    public LogEntry addLabels(Function<LogEntry, LogEntry> func) {
+    public LogEntry addLabels(@NotNull Function<LogEntry, LogEntry> func) {
       return func.apply(this);
     }
 

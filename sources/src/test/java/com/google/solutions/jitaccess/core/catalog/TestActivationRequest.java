@@ -21,7 +21,7 @@
 
 package com.google.solutions.jitaccess.core.catalog;
 
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;

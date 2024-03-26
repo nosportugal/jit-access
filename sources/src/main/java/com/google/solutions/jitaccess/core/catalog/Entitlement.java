@@ -22,6 +22,7 @@
 package com.google.solutions.jitaccess.core.catalog;
 
 import com.google.common.base.Preconditions;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Comparator;
 
@@ -31,10 +32,9 @@ import java.util.Comparator;
  * period of time has elapsed.
  */
 public record Entitlement<TEntitlementId extends EntitlementId> (
-  TEntitlementId id,
-  String name,
-  ActivationType activationType,
-  Status status
+  @NotNull TEntitlementId id,
+  @NotNull String name,
+  @NotNull ActivationType activationType
 ) implements Comparable<Entitlement<TEntitlementId>> {
   public Entitlement {
     Preconditions.checkNotNull(id, "id");
@@ -47,31 +47,9 @@ public record Entitlement<TEntitlementId extends EntitlementId> (
   }
 
   @Override
-  public int compareTo(Entitlement<TEntitlementId> o) {
+  public int compareTo(@NotNull Entitlement<TEntitlementId> o) {
     return Comparator
-      .comparing((Entitlement<TEntitlementId> e) -> e.status)
-      .thenComparing(e -> e.id)
+      .comparing((Entitlement<TEntitlementId> e) -> e.id)
       .compare(this, o);
-  }
-
-  //---------------------------------------------------------------------------
-  // Inner classes.
-  //---------------------------------------------------------------------------
-
-  public enum Status {
-    /**
-     * Entitlement can be activated.
-     */
-    AVAILABLE,
-
-    /**
-     * Entitlement is active.
-     */
-    ACTIVE,
-
-    /**
-     * Approval pending.
-     */
-    ACTIVATION_PENDING
   }
 }

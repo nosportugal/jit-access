@@ -21,7 +21,11 @@
 
 package com.google.solutions.jitaccess.core;
 
+import org.jetbrains.annotations.NotNull;
+
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -36,9 +40,9 @@ public class ThrowingCompletableFuture {
     T supply() throws Exception;
   }
 
-  public static <T> CompletableFuture<T> submit(
-    ThrowingSupplier<T> supplier,
-    Executor executor
+  public static <T> @NotNull CompletableFuture<T> submit(
+    @NotNull ThrowingSupplier<T> supplier,
+    @NotNull Executor executor
   ) {
     var future = new CompletableFuture<T>();
     executor.execute(() -> {
@@ -51,5 +55,27 @@ public class ThrowingCompletableFuture {
     });
 
     return future;
+  }
+
+  /**
+   * Await a future and rethrow exceptions, unwrapping known exceptions.
+   */
+  public static <T> T awaitAndRethrow(
+    @NotNull CompletableFuture<T> future
+  ) throws AccessException, IOException {
+    try {
+      return future.get();
+    }
+    catch (InterruptedException | ExecutionException e) {
+      if (e.getCause() instanceof AccessException) {
+        throw (AccessException)e.getCause().fillInStackTrace();
+      }
+
+      if (e.getCause() instanceof IOException) {
+        throw (IOException)e.getCause().fillInStackTrace();
+      }
+
+      throw new IOException("Awaiting executor tasks failed", e);
+    }
   }
 }

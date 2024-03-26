@@ -24,9 +24,10 @@ package com.google.solutions.jitaccess.core.catalog;
 import com.google.auth.oauth2.TokenVerifier;
 import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.AccessException;
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
 import com.google.solutions.jitaccess.core.clients.IamCredentialsClient;
 import jakarta.inject.Singleton;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -42,8 +43,8 @@ public class TokenSigner {
   private final TokenVerifier tokenVerifier;
 
   public TokenSigner(
-    IamCredentialsClient iamCredentialsClient,
-    Options options
+    @NotNull IamCredentialsClient iamCredentialsClient,
+    @NotNull Options options
   ) {
     this.options = options;
     this.iamCredentialsClient = iamCredentialsClient;
@@ -62,9 +63,9 @@ public class TokenSigner {
   /**
    * Create a signed JWT for a given payload.
    */
-  public <T> TokenWithExpiry sign(
-    JsonWebTokenConverter<T> converter,
-    T payload
+  public <T> @NotNull TokenWithExpiry sign(
+    @NotNull JsonWebTokenConverter<T> converter,
+    @NotNull T payload
   ) throws AccessException, IOException {
 
     Preconditions.checkNotNull(converter, "converter");
@@ -91,8 +92,8 @@ public class TokenSigner {
    * Decode and verify a JWT.
    */
   public <T> T verify(
-    JsonWebTokenConverter<T> converter,
-    String token
+    @NotNull JsonWebTokenConverter<T> converter,
+    @NotNull String token
   ) throws TokenVerifier.VerificationException {
 
     Preconditions.checkNotNull(converter, "converter");
@@ -118,9 +119,10 @@ public class TokenSigner {
   // -------------------------------------------------------------------------
 
   public record TokenWithExpiry(
-    String token,
-    Instant issueTime,
-    Instant expiryTime) {
+    @NotNull String token,
+    @NotNull Instant issueTime,
+    @NotNull Instant expiryTime
+  ) {
     public TokenWithExpiry {
       Preconditions.checkNotNull(token, "token");
       Preconditions.checkArgument(expiryTime.isAfter(issueTime));
@@ -128,7 +130,10 @@ public class TokenSigner {
     }
   }
 
-  public record Options(UserId serviceAccount, Duration tokenValidity) {
+  public record Options(
+    @NotNull UserId serviceAccount,
+    @NotNull Duration tokenValidity
+  ) {
     public Options {
       Preconditions.checkNotNull(serviceAccount);
       Preconditions.checkArgument(!tokenValidity.isNegative());

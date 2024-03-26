@@ -23,9 +23,10 @@ package com.google.solutions.jitaccess.core.catalog.project;
 
 import com.google.api.services.cloudasset.v1.model.*;
 import com.google.api.services.cloudresourcemanager.v3.model.EffectiveTag;
-import com.google.solutions.jitaccess.core.ProjectId;
+import com.google.solutions.jitaccess.cel.TemporaryIamCondition;
+import com.google.solutions.jitaccess.core.catalog.ProjectId;
 import com.google.solutions.jitaccess.core.RoleBinding;
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
 import com.google.solutions.jitaccess.core.catalog.ActivationType;
 import com.google.solutions.jitaccess.core.catalog.Entitlement;
 import com.google.solutions.jitaccess.core.clients.PolicyAnalyzerClient;
@@ -33,6 +34,8 @@ import com.google.solutions.jitaccess.core.clients.ResourceManagerClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
@@ -43,15 +46,19 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 public class TestPolicyAnalyzerRepository {
-  private static final UserId SAMPLE_USER = new UserId("user-1", "user-1@example.com");
-  private static final UserId SAMPLE_APPROVING_USER_1 = new UserId("approver-1", "approver-1@example.com");
-  private static final UserId SAMPLE_APPROVING_USER_2 = new UserId("approver-2", "approver-2@example.com");
+  private static final UserId SAMPLE_USER = new UserId("user-1@example.com");
+  private static final UserId SAMPLE_APPROVING_USER_1 = new UserId("approver-1@example.com");
+  private static final UserId SAMPLE_APPROVING_USER_2 = new UserId("approver-2@example.com");
   private static final ProjectId SAMPLE_PROJECT_ID_1 = new ProjectId("project-1");
   private static final ProjectId SAMPLE_PROJECT_ID_2 = new ProjectId("project-2");
   private static final String SAMPLE_ROLE_1 = "roles/resourcemanager.role1";
   private static final String SAMPLE_ROLE_2 = "roles/resourcemanager.role2";
   private static final String JIT_CONDITION = "has({}.jitAccessConstraint)";
   private static final String MPA_CONDITION = "has({}.multiPartyApprovalConstraint)";
+  private static final String VALID_TEMPORARY_CONDITION =
+    new TemporaryIamCondition(Instant.now(), Instant.now().plus(1, ChronoUnit.HOURS)).toString();
+  private static final String EXPIRED_TEMPORARY_CONDITION =
+    new TemporaryIamCondition(Instant.EPOCH, Instant.now().minus(1, ChronoUnit.HOURS)).toString();
 
   private static IamPolicyAnalysisResult createIamPolicyAnalysisResult(
     String resource,
@@ -310,14 +317,13 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(0, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(0, entitlements.available().size());
   }
 
   @Test
@@ -344,14 +350,13 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(0, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(0, entitlements.available().size());
   }
 
   @Test
@@ -381,14 +386,13 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(0, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(0, entitlements.available().size());
   }
 
   @Test
@@ -421,21 +425,21 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(1, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(1, entitlements.available().size());
 
-    var entitlement = entitlements.allEntitlements().stream().findFirst().get();
+    var entitlement = entitlements.available().stream().findFirst().get();
     assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
     assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
     assertEquals(SAMPLE_ROLE_1, entitlement.name());
     assertEquals(ActivationType.JIT, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
+    assertTrue(entitlements.currentActivations().isEmpty());
+    assertTrue(entitlements.expiredActivations().isEmpty());
   }
 
   @Test
@@ -475,21 +479,21 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(1, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(1, entitlements.available().size());
 
-    var entitlement = entitlements.allEntitlements().stream().findFirst().get();
+    var entitlement = entitlements.available().stream().findFirst().get();
     assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
     assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
     assertEquals(SAMPLE_ROLE_1, entitlement.name());
     assertEquals(ActivationType.JIT, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
+    assertTrue(entitlements.currentActivations().isEmpty());
+    assertTrue(entitlements.expiredActivations().isEmpty());
   }
 
   @Test
@@ -522,21 +526,21 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(1, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(1, entitlements.available().size());
 
-    var entitlement = entitlements.allEntitlements().stream().findFirst().get();
+    var entitlement = entitlements.available().stream().findFirst().get();
     assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
     assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
     assertEquals(SAMPLE_ROLE_1, entitlement.name());
     assertEquals(ActivationType.MPA, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
+    assertTrue(entitlements.currentActivations().isEmpty());
+    assertTrue(entitlements.expiredActivations().isEmpty());
   }
 
   @Test
@@ -576,21 +580,21 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(1, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(1, entitlements.available().size());
 
-    var entitlement = entitlements.allEntitlements().stream().findFirst().get();
+    var entitlement = entitlements.available().stream().findFirst().get();
     assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
     assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
     assertEquals(SAMPLE_ROLE_1, entitlement.name());
     assertEquals(ActivationType.MPA, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
+    assertTrue(entitlements.currentActivations().isEmpty());
+    assertTrue(entitlements.expiredActivations().isEmpty());
   }
 
   @Test
@@ -632,26 +636,26 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(2, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(2, entitlements.available().size());
 
-    var entitlement = entitlements.allEntitlements().stream().findFirst().get();
+    assertTrue(entitlements.currentActivations().isEmpty());
+    assertTrue(entitlements.expiredActivations().isEmpty());
+
+    var entitlement = entitlements.available().stream().findFirst().get();
     assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
     assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
     assertEquals(ActivationType.JIT, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
 
-    entitlement = entitlements.allEntitlements().stream().skip(1).findFirst().get();
+    entitlement = entitlements.available().stream().skip(1).findFirst().get();
     assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
     assertEquals(SAMPLE_ROLE_2, entitlement.id().roleBinding().role());
     assertEquals(ActivationType.MPA, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
   }
 
   @Test
@@ -694,46 +698,21 @@ public class TestPolicyAnalyzerRepository {
     var allEntitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(allEntitlements.warnings());
     assertEquals(0, allEntitlements.warnings().size());
 
-    assertNotNull(allEntitlements.allEntitlements());
-    assertEquals(1, allEntitlements.allEntitlements().size());
+    assertNotNull(allEntitlements.available());
+    assertEquals(1, allEntitlements.available().size());
 
-    var entitlement = allEntitlements.allEntitlements().stream().findFirst().get();
+    assertTrue(allEntitlements.currentActivations().isEmpty());
+    assertTrue(allEntitlements.expiredActivations().isEmpty());
+
+    var entitlement = allEntitlements.available().stream().findFirst().get();
     assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
     assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
     assertEquals(ActivationType.JIT, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
-
-    // JIT only -> MPA binding is ignored.
-    var jitEntitlements = service.findEntitlements(
-      SAMPLE_USER,
-      SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
-    assertEquals(1, jitEntitlements.allEntitlements().size());
-    entitlement = jitEntitlements.allEntitlements().stream().findFirst().get();
-    assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
-    assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
-    assertEquals(ActivationType.JIT, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
-
-    // MPA only -> JIT binding is ignored.
-    var mpaEntitlements = service.findEntitlements(
-      SAMPLE_USER,
-      SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
-    assertEquals(1, mpaEntitlements.allEntitlements().size());
-    entitlement = mpaEntitlements.allEntitlements().stream().findFirst().get();
-    assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
-    assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
-    assertEquals(ActivationType.MPA, entitlement.activationType());
-    assertEquals(Entitlement.Status.AVAILABLE, entitlement.status());
   }
 
   @Test
@@ -753,7 +732,7 @@ public class TestPolicyAnalyzerRepository {
       SAMPLE_PROJECT_ID_1.getFullResourceName(),
       SAMPLE_ROLE_1,
       SAMPLE_USER,
-      "time ...",
+      VALID_TEMPORARY_CONDITION,
       JitConstraints.ACTIVATION_CONDITION_TITLE,
       "TRUE");
 
@@ -761,7 +740,7 @@ public class TestPolicyAnalyzerRepository {
       SAMPLE_PROJECT_ID_1.getFullResourceName(),
       SAMPLE_ROLE_1,
       SAMPLE_USER,
-      "time ...",
+      EXPIRED_TEMPORARY_CONDITION,
       JitConstraints.ACTIVATION_CONDITION_TITLE,
       "FALSE");
 
@@ -784,23 +763,25 @@ public class TestPolicyAnalyzerRepository {
       resourceManagerAdapter,
       new PolicyAnalyzerRepository.Options("organizations/0", null));
 
+
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(1, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(1, entitlements.available().size());
 
-    var entitlement = entitlements.allEntitlements().stream().findFirst().get();
+    var entitlement = entitlements.available().stream().findFirst().get();
     assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
     assertEquals(SAMPLE_ROLE_1, entitlement.id().roleBinding().role());
     assertEquals(ActivationType.JIT, entitlement.activationType());
-    assertEquals(Entitlement.Status.ACTIVE, entitlement.status());
+
+    assertTrue(entitlements.currentActivations().containsKey(entitlement.id()));
+    assertTrue(entitlements.expiredActivations().containsKey(entitlement.id()));
   }
 
   @Test
@@ -834,14 +815,13 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(0, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(0, entitlements.available().size());
   }
 
   @Test
@@ -893,16 +873,15 @@ public class TestPolicyAnalyzerRepository {
     var entitlements = service.findEntitlements(
       SAMPLE_USER,
       SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
 
     assertNotNull(entitlements.warnings());
     assertEquals(0, entitlements.warnings().size());
 
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(2, entitlements.allEntitlements().size());
+    assertNotNull(entitlements.available());
+    assertEquals(2, entitlements.available().size());
 
-    var first = entitlements.allEntitlements().first();
+    var first = entitlements.available().first();
     assertEquals(
       new RoleBinding(SAMPLE_PROJECT_ID_1, SAMPLE_ROLE_1),
       first.id().roleBinding());
@@ -910,77 +889,13 @@ public class TestPolicyAnalyzerRepository {
       ActivationType.JIT,
       first.activationType());
 
-    var second = entitlements.allEntitlements().last();
+    var second = entitlements.available().last();
     assertEquals(
       new RoleBinding(SAMPLE_PROJECT_ID_2, SAMPLE_ROLE_1),
       second.id().roleBinding());
     assertEquals(
       ActivationType.JIT,
       second.activationType());
-  }
-
-  @Test
-  public void whenStatusSetToActiveOnly_ThenFindEntitlementsOnlyReturnsActivatedBindings() throws Exception {
-    var assetAdapter = Mockito.mock(PolicyAnalyzerClient.class);
-    var resourceManagerAdapter = Mockito.mock(ResourceManagerClient.class);
-
-    var jitEligibleBinding = createConditionalIamPolicyAnalysisResult(
-      SAMPLE_PROJECT_ID_1.getFullResourceName(),
-      SAMPLE_ROLE_1,
-      SAMPLE_USER,
-      JIT_CONDITION,
-      "eligible binding",
-      "CONDITIONAL");
-
-    var mpaEligibleBinding = createConditionalIamPolicyAnalysisResult(
-      SAMPLE_PROJECT_ID_1.getFullResourceName(),
-      SAMPLE_ROLE_2,
-      SAMPLE_USER,
-      MPA_CONDITION,
-      "MPA-eligible binding",
-      "CONDITIONAL");
-
-    var activatedBinding = createConditionalIamPolicyAnalysisResult(
-      SAMPLE_PROJECT_ID_1.getFullResourceName(),
-      SAMPLE_ROLE_1,
-      SAMPLE_USER,
-      "time ...",
-      JitConstraints.ACTIVATION_CONDITION_TITLE,
-      "TRUE");
-
-    when(assetAdapter
-      .findAccessibleResourcesByUser(
-        anyString(),
-        eq(SAMPLE_USER),
-        eq(Optional.empty()),
-        eq(Optional.of(SAMPLE_PROJECT_ID_1.getFullResourceName())),
-        eq(false)))
-      .thenReturn(new IamPolicyAnalysis()
-        .setAnalysisResults(List.of(
-          jitEligibleBinding,
-          mpaEligibleBinding,
-          activatedBinding)));
-
-    var service = new PolicyAnalyzerRepository(
-      assetAdapter,
-      resourceManagerAdapter,
-      new PolicyAnalyzerRepository.Options("organizations/0", null));
-
-    var entitlements = service.findEntitlements(
-      SAMPLE_USER,
-      SAMPLE_PROJECT_ID_1,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.ACTIVE));
-
-    assertNotNull(entitlements.warnings());
-    assertEquals(0, entitlements.warnings().size());
-
-    assertNotNull(entitlements.allEntitlements());
-    assertEquals(1, entitlements.allEntitlements().size());
-
-    var entitlement = entitlements.allEntitlements().stream().findFirst().get();
-    assertEquals(SAMPLE_PROJECT_ID_1, entitlement.id().projectId());
-    assertEquals(Entitlement.Status.ACTIVE, entitlement.status());
   }
 
   // ---------------------------------------------------------------------
@@ -1017,7 +932,7 @@ public class TestPolicyAnalyzerRepository {
       new PolicyAnalyzerRepository.Options("organizations/0", null));
 
     var approvers = service.findEntitlementHolders(
-      new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT_ID_1, SAMPLE_ROLE_1)),
+      new ProjectRole(new RoleBinding(SAMPLE_PROJECT_ID_1, SAMPLE_ROLE_1)),
       ActivationType.MPA);
 
     assertTrue(approvers.isEmpty());
@@ -1062,7 +977,7 @@ public class TestPolicyAnalyzerRepository {
       new PolicyAnalyzerRepository.Options("organizations/0", null));
 
     var approvers = service.findEntitlementHolders(
-      new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT_ID_1, SAMPLE_ROLE_1)),
+      new ProjectRole(new RoleBinding(SAMPLE_PROJECT_ID_1, SAMPLE_ROLE_1)),
       ActivationType.MPA);
 
     assertEquals(2, approvers.size());

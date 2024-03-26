@@ -21,23 +21,22 @@
 
 package com.google.solutions.jitaccess.core.catalog.project;
 
-import com.google.api.services.admin.directory.model.Group;
-import com.google.api.services.admin.directory.model.Member;
 import com.google.api.services.cloudasset.v1.model.Binding;
+import com.google.api.services.directory.model.Group;
+import com.google.api.services.directory.model.Member;
 import com.google.common.base.Preconditions;
+import com.google.solutions.jitaccess.cel.TemporaryIamCondition;
 import com.google.solutions.jitaccess.core.*;
-import com.google.solutions.jitaccess.core.catalog.ActivationType;
-import com.google.solutions.jitaccess.core.catalog.Entitlement;
-import com.google.solutions.jitaccess.core.catalog.EntitlementSet;
+import com.google.solutions.jitaccess.core.auth.UserId;
+import com.google.solutions.jitaccess.core.catalog.*;
 import com.google.solutions.jitaccess.core.clients.AssetInventoryClient;
 import com.google.solutions.jitaccess.core.clients.DirectoryGroupsClient;
-import com.google.solutions.jitaccess.core.clients.IamTemporaryAccessConditions;
+import dev.cel.common.CelException;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
@@ -51,20 +50,20 @@ import io.opentelemetry.instrumentation.annotations.WithSpan;
  * are annotated with a special IAM condition (making the binding
  * "eligible").
  */
-public class AssetInventoryRepository implements ProjectRoleRepository {
+public class AssetInventoryRepository extends ProjectRoleRepository {
   public static final String GROUP_PREFIX = "group:";
   public static final String USER_PREFIX = "user:";
 
-  private final Options options;
-  private final Executor executor;
-  private final DirectoryGroupsClient groupsClient;
-  private final AssetInventoryClient assetInventoryClient;
+  private final @NotNull Options options;
+  private final @NotNull Executor executor;
+  private final @NotNull DirectoryGroupsClient groupsClient;
+  private final @NotNull AssetInventoryClient assetInventoryClient;
 
   public AssetInventoryRepository(
-    Executor executor,
-    DirectoryGroupsClient groupsClient,
-    AssetInventoryClient assetInventoryClient,
-    Options options
+    @NotNull Executor executor,
+    @NotNull DirectoryGroupsClient groupsClient,
+    @NotNull AssetInventoryClient assetInventoryClient,
+    @NotNull Options options
   ) {
     Preconditions.checkNotNull(executor, "executor");
     Preconditions.checkNotNull(groupsClient, "groupsClient");
@@ -77,25 +76,8 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
     this.options = options;
   }
 
-  static <T> T awaitAndRethrow(CompletableFuture<T> future) throws AccessException, IOException {
-    try {
-      return future.get();
-    }
-    catch (InterruptedException | ExecutionException e) {
-      if (e.getCause() instanceof AccessException) {
-        throw (AccessException)e.getCause().fillInStackTrace();
-      }
-
-      if (e.getCause() instanceof IOException) {
-        throw (IOException)e.getCause().fillInStackTrace();
-      }
-
-      throw new IOException("Awaiting executor tasks failed", e);
-    }
-  }
-
-  List<Binding> findProjectBindings(
-    UserId user,
+  @NotNull List<Binding> findProjectBindings(
+    @NotNull UserId user,
     ProjectId projectId
   ) throws AccessException, IOException {
     //
@@ -115,8 +97,10 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
         projectId),
       this.executor);
 
-    var principalSetForUser = new PrincipalSet(user, awaitAndRethrow(listMembershipsFuture));
-    var allBindings = awaitAndRethrow(effectivePoliciesFuture)
+    var principalSetForUser = new PrincipalSet(
+      user,
+      ThrowingCompletableFuture.awaitAndRethrow(listMembershipsFuture));
+    return ThrowingCompletableFuture.awaitAndRethrow(effectivePoliciesFuture)
       .stream()
 
       // All bindings, across all resources in the ancestry.
@@ -125,7 +109,6 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
       // Only bindings that apply to the user.
       .filter(binding -> principalSetForUser.isMember(binding))
       .collect(Collectors.toList());
-    return allBindings;
   }
 
   //---------------------------------------------------------------------------
@@ -134,8 +117,8 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
 
   @Override
   @WithSpan
-  public SortedSet<ProjectId> findProjectsWithEntitlements(
-    UserId user
+  public @NotNull SortedSet<ProjectId> findProjectsWithEntitlements(
+    @NotNull UserId user
   ) {
     //
     // Not supported.
@@ -146,94 +129,106 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
 
   @Override
   @WithSpan
-  public EntitlementSet<ProjectRoleBinding> findEntitlements(
-    UserId user,
-    ProjectId projectId,
-    EnumSet<ActivationType> typesToInclude,
-    EnumSet<Entitlement.Status> statusesToInclude
+  public @NotNull EntitlementSet<ProjectRole> findEntitlements(
+    @NotNull UserId user,
+    @NotNull ProjectId projectId,
+    @NotNull EnumSet<ActivationType> typesToInclude
   ) throws AccessException, IOException {
 
     List<Binding> allBindings = findProjectBindings(user, projectId);
 
-    var allAvailable = new TreeSet<Entitlement<ProjectRoleBinding>>();
-    if (statusesToInclude.contains(Entitlement.Status.AVAILABLE)) {
-
-      //
-      // Find all JIT-eligible role bindings. The bindings are
-      // conditional and have a special condition that serves
-      // as marker.
-      //
-      Set<Entitlement<ProjectRoleBinding>> jitEligible;
-      if (typesToInclude.contains(ActivationType.JIT)) {
-        jitEligible = allBindings.stream()
-          .filter(binding -> JitConstraints.isJitAccessConstraint(binding.getCondition()))
-          .map(binding -> new ProjectRoleBinding(new RoleBinding(projectId, binding.getRole())))
-          .map(roleBinding -> new Entitlement<>(
-            roleBinding,
-            roleBinding.roleBinding().role(),
-            ActivationType.JIT,
-            Entitlement.Status.AVAILABLE))
-          .collect(Collectors.toSet());
-      }
-      else {
-        jitEligible = Set.of();
-      }
-
-      //
-      // Find all MPA-eligible role bindings. The bindings are
-      // conditional and have a special condition that serves
-      // as marker.
-      //
-      Set<Entitlement<ProjectRoleBinding>> mpaEligible;
-      if (typesToInclude.contains(ActivationType.MPA)) {
-        mpaEligible = allBindings.stream()
-          .filter(binding -> JitConstraints.isMultiPartyApprovalConstraint(binding.getCondition()))
-          .map(binding -> new ProjectRoleBinding(new RoleBinding(projectId, binding.getRole())))
-          .map(roleBinding -> new Entitlement<>(
-            roleBinding,
-            roleBinding.roleBinding().role(),
-            ActivationType.MPA,
-            Entitlement.Status.AVAILABLE))
-          .collect(Collectors.toSet());
-      }
-      else {
-        mpaEligible = Set.of();
-      }
-
-      //
-      // Determine effective set of eligible roles. If a role is both JIT- and
-      // MPA-eligible, only retain the JIT-eligible one.
-      //
-      allAvailable.addAll(jitEligible);
-      allAvailable.addAll(mpaEligible
-        .stream()
-        .filter(r -> !jitEligible.stream().anyMatch(a -> a.id().equals(r.id())))
-        .collect(Collectors.toList()));
+    //
+    // Find all JIT-eligible role bindings. The bindings are
+    // conditional and have a special condition that serves
+    // as marker.
+    //
+    Set<Entitlement<ProjectRole>> jitEligible;
+    if (typesToInclude.contains(ActivationType.JIT)) {
+      jitEligible = allBindings.stream()
+        .filter(binding -> JitConstraints.isJitAccessConstraint(binding.getCondition()))
+        .map(binding -> new ProjectRole(new RoleBinding(projectId, binding.getRole())))
+        .map(roleBinding -> new Entitlement<>(
+          roleBinding,
+          roleBinding.roleBinding().role(),
+          ActivationType.JIT))
+        .collect(Collectors.toSet());
+    }
+    else {
+      jitEligible = Set.of();
     }
 
-    var allActive = new HashSet<ProjectRoleBinding>();
-    if (statusesToInclude.contains(Entitlement.Status.ACTIVE)) {
-      allActive.addAll(allBindings.stream()
-        // Only temporary access bindings.
-        .filter(binding -> JitConstraints.isActivated(binding.getCondition()))
-
-        // Only bindings that are still valid.
-        .filter(binding -> IamTemporaryAccessConditions.evaluate(
-          binding.getCondition().getExpression(),
-          Instant.now()))
-
-        .map(binding -> new ProjectRoleBinding(new RoleBinding(projectId, binding.getRole())))
-        .collect(Collectors.toList()));
+    //
+    // Find all MPA-eligible role bindings. The bindings are
+    // conditional and have a special condition that serves
+    // as marker.
+    //
+    Set<Entitlement<ProjectRole>> mpaEligible;
+    if (typesToInclude.contains(ActivationType.MPA)) {
+      mpaEligible = allBindings.stream()
+        .filter(binding -> JitConstraints.isMultiPartyApprovalConstraint(binding.getCondition()))
+        .map(binding -> new ProjectRole(new RoleBinding(projectId, binding.getRole())))
+        .map(roleBinding -> new Entitlement<>(
+          roleBinding,
+          roleBinding.roleBinding().role(),
+          ActivationType.MPA))
+        .collect(Collectors.toSet());
+    }
+    else {
+      mpaEligible = Set.of();
     }
 
-    return new EntitlementSet<>(allAvailable, allActive, Set.of());
+    //
+    // Determine effective set of eligible roles. If a role is both JIT- and
+    // MPA-eligible, only retain the JIT-eligible one.
+    //
+    var allAvailable = new TreeSet<Entitlement<ProjectRole>>();
+
+    allAvailable.addAll(jitEligible);
+    allAvailable.addAll(mpaEligible
+      .stream()
+      .filter(r -> jitEligible.stream().noneMatch(a -> a.id().equals(r.id()))).toList());
+
+    //
+    // Find temporary bindings that reflect activations and sort out which
+    // ones are still active and which ones have expired.
+    //
+    var currentActivations = new HashMap<ProjectRole, Activation>();
+    var expiredActivations = new HashMap<ProjectRole, Activation>();
+
+    for (var binding : allBindings.stream()
+      // Only temporary access bindings.
+      .filter(binding -> JitConstraints.isActivated(binding.getCondition())).toList())
+    {
+      var condition = new TemporaryIamCondition(binding.getCondition().getExpression());
+      boolean isValid;
+
+      try {
+        isValid = condition.evaluate();
+      }
+      catch (CelException e) {
+        isValid = false;
+      }
+
+      if (isValid) {
+        currentActivations.put(
+          new ProjectRole(new RoleBinding(projectId, binding.getRole())),
+          new Activation(condition.getValidity()));
+      }
+      else {
+        expiredActivations.put(
+          new ProjectRole(new RoleBinding(projectId, binding.getRole())),
+          new Activation(condition.getValidity()));
+      }
+    }
+
+    return new EntitlementSet<>(allAvailable, currentActivations, expiredActivations, Set.of());
   }
 
   @Override
   @WithSpan
-  public Set<UserId> findEntitlementHolders(
-    ProjectRoleBinding roleBinding,
-    ActivationType activationType
+  public @NotNull Set<UserId> findEntitlementHolders(
+    @NotNull ProjectRole roleBinding,
+    @NotNull ActivationType activationType
   ) throws AccessException, IOException {
 
     var policies = this.assetInventoryClient.getEffectiveIamPolicies(
@@ -285,15 +280,14 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
           }
         },
         this.executor))
-      .collect(Collectors.toList());
+      .toList();
 
     var allMembers = new HashSet<>(allUserMembers);
 
     for (var listMembersFuture : listMembersFutures) {
-      var members = awaitAndRethrow(listMembersFuture)
+      var members = ThrowingCompletableFuture.awaitAndRethrow(listMembersFuture)
         .stream()
-        .map(m -> new UserId(m.getEmail()))
-        .collect(Collectors.toList());
+        .map(m -> new UserId(m.getEmail())).toList();
       allMembers.addAll(members);
     }
 
@@ -304,12 +298,12 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
   // Inner classes.
   // -------------------------------------------------------------------------
 
-  class PrincipalSet {
-    private final Set<String> principalIdentifiers;
+  static class PrincipalSet {
+    private final @NotNull Set<String> principalIdentifiers;
 
     public PrincipalSet(
-      UserId user,
-      Collection<Group> groups
+      @NotNull UserId user,
+      @NotNull Collection<Group> groups
     ) {
       this.principalIdentifiers = groups
         .stream()
@@ -318,19 +312,19 @@ public class AssetInventoryRepository implements ProjectRoleRepository {
       this.principalIdentifiers.add(String.format("user:%s", user.email));
     }
 
-    public boolean isMember(Binding binding) {
+    public boolean isMember(@NotNull Binding binding) {
       return binding.getMembers()
         .stream()
         .anyMatch(member -> this.principalIdentifiers.contains(member));
     }
   }
 
-
   /**
    * @param scope Scope to use for queries.
    */
   public record Options(
-    String scope) {
+    @NotNull String scope
+  ) {
 
     public Options {
       Preconditions.checkNotNull(scope, "scope");

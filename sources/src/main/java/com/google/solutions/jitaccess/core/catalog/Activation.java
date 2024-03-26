@@ -22,15 +22,52 @@
 package com.google.solutions.jitaccess.core.catalog;
 
 import com.google.common.base.Preconditions;
+import com.google.solutions.jitaccess.cel.TimeSpan;
+import org.jetbrains.annotations.NotNull;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Objects;
 
 /**
- * Represents a successful activation of one or more entitlements.
+ * Represents a successful activation of an entitlement.
+ *
+ * @param validity validity of the activation.
  */
-public record Activation<TEntitlementId extends EntitlementId>(
-  ActivationRequest<TEntitlementId> request
-) {
+public record Activation(
+  @NotNull TimeSpan validity
+) implements Comparable<Activation> {
   public Activation {
-    Preconditions.checkNotNull(request, "request");
-    Preconditions.checkArgument(!request.entitlements().isEmpty());
+    Preconditions.checkNotNull(validity, "validity");
+  }
+
+  public Activation(@NotNull Instant start, @NotNull Duration duration) {
+    this(new TimeSpan(start, start.plus(duration)));
+  }
+
+  @Override
+  public int compareTo(@NotNull Activation o) {
+    return this.validity.compareTo(o.validity());
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    Activation that = (Activation) o;
+    return validity.equals(that.validity);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(validity);
+  }
+
+  boolean isValid(Instant now) {
+    return !this.validity.start().isAfter(now) && !this.validity.end().isBefore(now);
   }
 }

@@ -23,12 +23,14 @@ package com.google.solutions.jitaccess.core.clients;
 
 import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.AccessException;
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -43,13 +45,13 @@ import io.opentelemetry.instrumentation.annotations.WithSpan;
  * Adapter for sending email over SMTP.
  */
 public class SmtpClient {
-  private final SecretManagerClient secretManagerClient;
-  private final Options options;
+  private final @NotNull SecretManagerClient secretManagerClient;
+  private final @NotNull Options options;
 
 
   public SmtpClient(
-    SecretManagerClient secretManagerClient,
-    Options options
+    @NotNull SecretManagerClient secretManagerClient,
+    @NotNull Options options
   ) {
     Preconditions.checkNotNull(secretManagerClient, "secretManagerAdapter");
     Preconditions.checkNotNull(options, "options");
@@ -60,11 +62,11 @@ public class SmtpClient {
 
   @WithSpan
   public void sendMail(
-    Collection<UserId> toRecipients,
-    Collection<UserId> ccRecipients,
-    String subject,
-    Multipart content,
-    EnumSet<Flags> flags
+    @NotNull Collection<EmailAddress> toRecipients,
+    @NotNull Collection<EmailAddress> ccRecipients,
+    @NotNull String subject,
+    @NotNull Multipart content,
+    @NotNull EnumSet<Flags> flags
   ) throws MailException {
     Preconditions.checkNotNull(toRecipients, "toRecipients");
     Preconditions.checkNotNull(ccRecipients, "ccRecipients");
@@ -92,18 +94,20 @@ public class SmtpClient {
       var message = new MimeMessage(session);
       message.setContent(content);
 
-      message.setFrom(new InternetAddress(this.options.senderAddress, this.options.senderName));
+      message.setFrom(new InternetAddress(
+        this.options.senderAddress.value(),
+        this.options.senderName));
 
       for (var recipient : toRecipients){
         message.addRecipient(
           Message.RecipientType.TO,
-          new InternetAddress(recipient.email, recipient.email));
+          new InternetAddress(recipient.value(), recipient.value()));
       }
 
       for (var recipient : ccRecipients){
         message.addRecipient(
           Message.RecipientType.CC,
-          new InternetAddress(recipient.email, recipient.email));
+          new InternetAddress(recipient.value(), recipient.value()));
       }
 
       //
@@ -128,11 +132,11 @@ public class SmtpClient {
   }
 
   public void sendMail(
-    Collection<UserId> toRecipients,
-    Collection<UserId> ccRecipients,
-    String subject,
-    String htmlContent,
-    EnumSet<Flags> flags
+    @NotNull Collection<EmailAddress> toRecipients,
+    @NotNull Collection<EmailAddress> ccRecipients,
+    @NotNull String subject,
+    @NotNull String htmlContent,
+    @NotNull EnumSet<Flags> flags
   ) throws MailException {
     Preconditions.checkNotNull(toRecipients, "toRecipients");
     Preconditions.checkNotNull(ccRecipients, "ccRecipients");
@@ -168,21 +172,21 @@ public class SmtpClient {
   }
 
   public static class Options {
-    private PasswordAuthentication cachedAuthentication = null;
-    private final String senderName;
-    private final String senderAddress;
-    private final Properties smtpProperties;
+    private @Nullable PasswordAuthentication cachedAuthentication = null;
+    private final @NotNull String senderName;
+    private final @NotNull EmailAddress senderAddress;
+    private final @NotNull Properties smtpProperties;
     private String smtpUsername;
     private String smtpPassword;
     private String smtpSecretPath;
 
     public Options(
-      String smtpHost,
+      @NotNull String smtpHost,
       int smtpPort,
-      String senderName,
-      String senderAddress,
+      @NotNull String senderName,
+      @NotNull EmailAddress senderAddress,
       boolean enableStartTls,
-      Map<String, String> extraOptions
+      @Nullable Map<String, String> extraOptions
     ) {
       Preconditions.checkNotNull(smtpHost, "smtpHost");
       Preconditions.checkNotNull(senderName, "senderName");
@@ -207,7 +211,7 @@ public class SmtpClient {
      * Set a JavaMail SMTP property, see
      * https://javaee.github.io/javamail/docs/api/com/sun/mail/smtp/package-summary.html.
      */
-    public Options setSmtpProperty(String name, String value) {
+    public @NotNull Options setSmtpProperty(@NotNull String name, String value) {
       Preconditions.checkArgument(name.startsWith("mail.smtp"), "The property is not an SMTP property");
       this.smtpProperties.put(name, value);
       return this;
@@ -216,7 +220,7 @@ public class SmtpClient {
     /**
      * Add credentials for SMTP authentication.
      */
-    public Options setSmtpCleartextCredentials(String username, String password) {
+    public @NotNull Options setSmtpCleartextCredentials(String username, String password) {
       Preconditions.checkNotNull(username, "username");
       Preconditions.checkNotNull(password, "password");
 
@@ -230,7 +234,7 @@ public class SmtpClient {
     /**
      * Add credentials for SMTP authentication.
      */
-    public Options setSmtpSecretCredentials(String username, String secretPath) {
+    public @NotNull Options setSmtpSecretCredentials(String username, String secretPath) {
       Preconditions.checkNotNull(username, "username");
       Preconditions.checkNotNull(secretPath, "secretPath");
 
@@ -241,8 +245,8 @@ public class SmtpClient {
       return this;
     }
 
-    public PasswordAuthentication createPasswordAuthentication(
-      SecretManagerClient adapter
+    public @NotNull PasswordAuthentication createPasswordAuthentication(
+      @NotNull SecretManagerClient adapter
     ) throws AccessException, IOException {
       //
       // Resolve authenticator on first use. To avoid holding a lock for
