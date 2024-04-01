@@ -30,8 +30,15 @@ import com.google.api.services.cloudresourcemanager.v3.CloudResourceManagerReque
 import com.google.api.services.cloudresourcemanager.v3.model.*;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.common.base.Preconditions;
+import com.google.solutions.jitaccess.cel.TemporaryIamCondition;
 import com.google.solutions.jitaccess.core.*;
+import com.google.solutions.jitaccess.core.catalog.FolderId;
+import com.google.solutions.jitaccess.core.catalog.OrganizationId;
+import com.google.solutions.jitaccess.core.catalog.ProjectId;
+import com.google.solutions.jitaccess.core.catalog.ResourceId;
 import jakarta.inject.Singleton;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -51,10 +58,10 @@ public class ResourceManagerClient {
 
   private static final int SEARCH_PROJECTS_PAGE_SIZE = 1000;
 
-  private final GoogleCredentials credentials;
-  private final HttpTransport.Options httpOptions;
+  private final @NotNull GoogleCredentials credentials;
+  private final @NotNull HttpTransport.Options httpOptions;
 
-  private CloudResourceManager createClient() throws IOException
+  private @NotNull CloudResourceManager createClient() throws IOException
   {
     try {
       return new CloudResourceManager
@@ -70,15 +77,15 @@ public class ResourceManagerClient {
     }
   }
 
-  private static boolean isRoleNotGrantableErrorMessage(String message)
+  private static boolean isRoleNotGrantableErrorMessage(@Nullable String message)
   {
     return message != null &&
       (message.contains("not supported") || message.contains("does not exist"));
   }
 
   public ResourceManagerClient(
-    GoogleCredentials credentials,
-    HttpTransport.Options httpOptions
+    @NotNull GoogleCredentials credentials,
+    @NotNull HttpTransport.Options httpOptions
   ) {
     Preconditions.checkNotNull(credentials, "credentials");
     Preconditions.checkNotNull(httpOptions, "httpOptions");
@@ -92,9 +99,9 @@ public class ResourceManagerClient {
    */
   @WithSpan
   public void addProjectIamBinding(
-    ProjectId projectId,
-    Binding binding,
-    EnumSet<ResourceManagerClient.IamBindingOptions> options,
+    @NotNull ProjectId projectId,
+    @NotNull Binding binding,
+    @NotNull EnumSet<ResourceManagerClient.IamBindingOptions> options,
     String requestReason
   ) throws AccessException, AlreadyExistsException, IOException {
     Preconditions.checkNotNull(projectId, "projectId");
@@ -153,7 +160,7 @@ public class ResourceManagerClient {
           //
           Predicate<Binding> isObsolete = b -> Bindings.equals(b, binding, false)
             && b.getCondition() != null
-            && IamTemporaryAccessConditions.isTemporaryAccessCondition(b.getCondition().getExpression());
+            && TemporaryIamCondition.isTemporaryAccessCondition(b.getCondition().getExpression());
 
           var nonObsoleteBindings =
             policy.getBindings().stream()
@@ -234,9 +241,9 @@ public class ResourceManagerClient {
    * Test whether certain permissions have been granted on the project.
    */
   @WithSpan
-  public List<String> testIamPermissions(
-    ProjectId projectId,
-    List<String> permissions
+  public @NotNull List<String> testIamPermissions(
+    @NotNull ProjectId projectId,
+    @NotNull List<String> permissions
   ) throws NotAuthenticatedException, IOException {
     try
     {
@@ -266,18 +273,18 @@ public class ResourceManagerClient {
    * Search for projects.
    */
   @WithSpan
-  public SortedSet<ProjectId> searchProjectIds(
-    String query
+  public @NotNull SortedSet<ProjectId> searchProjectIds(
+    @NotNull String query
   ) throws NotAuthenticatedException, IOException {
     try {
       var client = createClient();
 
       var response = client
-              .projects()
-              .search()
-              .setQuery(query)
-              .setPageSize(SEARCH_PROJECTS_PAGE_SIZE)
-              .execute();
+        .projects()
+        .search()
+        .setQuery(query)
+        .setPageSize(SEARCH_PROJECTS_PAGE_SIZE)
+        .execute();
 
       ArrayList<Project> allProjects = new ArrayList<>();
       if(response.getProjects() != null) {
@@ -321,8 +328,8 @@ public class ResourceManagerClient {
    * @return list of ancestors, starting with the project itself.
    */
   @WithSpan
-  public Collection<ResourceId> getAncestry(
-    ProjectId projectId
+  public @NotNull Collection<ResourceId> getAncestry(
+    @NotNull ProjectId projectId
   ) throws AccessException, IOException {
     try {
       var response = new GetAncestry(createClient(), projectId.id(), new GetAncestryRequest()).execute();
@@ -397,7 +404,7 @@ public class ResourceManagerClient {
    * Helper class for using Binding objects.
    */
   public static class Bindings {
-    public static boolean equals(Binding lhs, Binding rhs, boolean compareCondition) {
+    public static boolean equals(@NotNull Binding lhs, @NotNull Binding rhs, boolean compareCondition) {
       if (!lhs.getRole().equals(rhs.getRole())) {
         return  false;
       }
@@ -420,9 +427,7 @@ public class ResourceManagerClient {
             return false;
           }
 
-          if (!Objects.equals(lhs.getCondition().getDescription(), rhs.getCondition().getDescription())) {
-            return false;
-          }
+          return Objects.equals(lhs.getCondition().getDescription(), rhs.getCondition().getDescription());
         }
       }
 
@@ -459,7 +464,7 @@ public class ResourceManagerClient {
      * Project.
      */
     protected GetAncestry(
-      CloudResourceManager client,
+      @NotNull CloudResourceManager client,
       String projectId,
       GetAncestryRequest content
     ) {
@@ -533,7 +538,7 @@ public class ResourceManagerClient {
     }
 
     /** Required. The Project ID (for example, `my-project-123`). */
-    public GetAncestry setProjectId(String projectId) {
+    public @NotNull GetAncestry setProjectId(String projectId) {
       this.projectId = projectId;
       return this;
     }
@@ -547,7 +552,7 @@ public class ResourceManagerClient {
   /**
    * The request sent to the GetAncestry method.
    */
-  private final class GetAncestryRequest extends com.google.api.client.json.GenericJson {
+  private static final class GetAncestryRequest extends com.google.api.client.json.GenericJson {
   }
 
   /**
@@ -556,7 +561,7 @@ public class ResourceManagerClient {
   public static final class GetAncestryResponse extends GenericJson {
     /**
      * Ancestors are ordered from bottom to top of the resource hierarchy. The first ancestor is the
-     * project itself, followed by the project's parent, etc..
+     * project itself, followed by the project's parent, etc.
      * The value may be {@code null}.
      */
     @Key
@@ -576,7 +581,7 @@ public class ResourceManagerClient {
      * project itself, followed by the project's parent, etc..
      * @param ancestor ancestor or {@code null} for none
      */
-    public GetAncestryResponse setAncestor(java.util.List<Ancestor> ancestor) {
+    public @NotNull GetAncestryResponse setAncestor(java.util.List<Ancestor> ancestor) {
       this.ancestor = ancestor;
       return this;
     }
@@ -615,7 +620,7 @@ public class ResourceManagerClient {
      * Resource id of the ancestor.
      * @param resourceId resourceId or {@code null} for none
      */
-    public Ancestor setResourceId(AncestryResourceId resourceId) {
+    public @NotNull Ancestor setResourceId(AncestryResourceId resourceId) {
       this.resourceId = resourceId;
       return this;
     }
@@ -662,7 +667,7 @@ public class ResourceManagerClient {
      * The type-specific id. This should correspond to the id used in the type-specific API's.
      * @param id id or {@code null} for none
      */
-    public AncestryResourceId setId(String id) {
+    public @NotNull AncestryResourceId setId(String id) {
       this.id = id;
       return this;
     }
@@ -681,7 +686,7 @@ public class ResourceManagerClient {
      * and "project".
      * @param type type or {@code null} for none
      */
-    public AncestryResourceId setType(String type) {
+    public @NotNull AncestryResourceId setType(String type) {
       this.type = type;
       return this;
     }

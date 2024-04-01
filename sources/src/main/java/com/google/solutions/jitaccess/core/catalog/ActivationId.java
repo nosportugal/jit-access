@@ -22,6 +22,7 @@
 package com.google.solutions.jitaccess.core.catalog;
 
 import com.google.common.base.Preconditions;
+import org.jetbrains.annotations.NotNull;
 
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -29,14 +30,14 @@ import java.util.Base64;
 /**
  * Unique ID of an activation.
  */
-public record ActivationId(String id) {
+public record ActivationId(@NotNull String id) {
   public ActivationId {
     Preconditions.checkNotNull(id);
   }
 
   private static final SecureRandom random = new SecureRandom();
 
-  public static ActivationId newId(ActivationType type) {
+  public static @NotNull ActivationId newId(@NotNull ActivationType type) {
     var id = new byte[12];
     random.nextBytes(id);
 

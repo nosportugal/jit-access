@@ -22,10 +22,9 @@
 package com.google.solutions.jitaccess.core.catalog;
 
 import com.google.common.base.Preconditions;
-import com.google.solutions.jitaccess.core.AccessDeniedException;
-import com.google.solutions.jitaccess.core.AccessException;
-import com.google.solutions.jitaccess.core.AlreadyExistsException;
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.*;
+import com.google.solutions.jitaccess.core.auth.UserId;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -35,13 +34,22 @@ import java.util.Set;
 /**
  * Activates entitlements, for example by modifying IAM policies.
  */
-public abstract class EntitlementActivator<TEntitlementId extends EntitlementId> {
-  private final JustificationPolicy policy;
-  private final EntitlementCatalog<TEntitlementId> catalog;
+public abstract class EntitlementActivator<
+  TEntitlementId extends EntitlementId,
+  TScopeId extends ResourceId,
+  TUserContext extends CatalogUserContext> {
+
+  private final @NotNull JustificationPolicy policy;
+  private final @NotNull Catalog<TEntitlementId, TScopeId, TUserContext> catalog;
+
+  /**
+   * @return maximum number of roles that can be requested at once.
+   */
+  public abstract int maximumNumberOfEntitlementsPerJitRequest();
 
   protected EntitlementActivator(
-    EntitlementCatalog<TEntitlementId> catalog,
-    JustificationPolicy policy
+    @NotNull Catalog<TEntitlementId, TScopeId, TUserContext> catalog,
+    @NotNull JustificationPolicy policy
   ) {
     Preconditions.checkNotNull(catalog, "catalog");
     Preconditions.checkNotNull(policy, "policy");
@@ -53,13 +61,18 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
   /**
    * Create a new request to activate an entitlement that permits self-approval.
    */
-  public final JitActivationRequest<TEntitlementId> createJitRequest(
-    UserId requestingUser,
-    Set<TEntitlementId> entitlements,
-    String justification,
-    Instant startTime,
-    Duration duration
+  public final @NotNull JitActivationRequest<TEntitlementId> createJitRequest(
+    @NotNull TUserContext requestingUserContext,
+    @NotNull Set<TEntitlementId> entitlements,
+    @NotNull String justification,
+    @NotNull Instant startTime,
+    @NotNull Duration duration
   ) {
+    Preconditions.checkArgument(
+      entitlements.size() <= this.maximumNumberOfEntitlementsPerJitRequest(),
+      String.format(
+        "The number of roles exceeds the allowed maximum of %d",
+        this.maximumNumberOfEntitlementsPerJitRequest()));
     Preconditions.checkArgument(
       startTime.isAfter(Instant.now().minus(Duration.ofMinutes(1))),
       "Start time must not be in the past");
@@ -69,7 +82,7 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
     //
     return new JitRequest<>(
       ActivationId.newId(ActivationType.JIT),
-      requestingUser,
+      requestingUserContext.user(),
       entitlements,
       justification,
       startTime,
@@ -80,13 +93,13 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
    * Create a new request to activate an entitlement that requires
    * multi-party approval.
    */
-  public MpaActivationRequest<TEntitlementId> createMpaRequest(
-    UserId requestingUser,
-    Set<TEntitlementId> entitlements,
-    Set<UserId> reviewers,
-    String justification,
-    Instant startTime,
-    Duration duration
+  public @NotNull MpaActivationRequest<TEntitlementId> createMpaRequest(
+    @NotNull TUserContext requestingUserContext,
+    @NotNull Set<TEntitlementId> entitlements,
+    @NotNull Set<UserId> reviewers,
+    @NotNull String justification,
+    @NotNull Instant startTime,
+    @NotNull Duration duration
   ) throws AccessException, IOException {
 
     Preconditions.checkArgument(
@@ -95,7 +108,7 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
 
     var request = new MpaRequest<>(
       ActivationId.newId(ActivationType.MPA),
-      requestingUser,
+      requestingUserContext.user(),
       entitlements,
       reviewers,
       justification,
@@ -106,7 +119,9 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
     // Pre-verify access to avoid sending an MPA requests for which
     // the access check will fail later.
     //
-    this.catalog.verifyUserCanRequest(request);
+    this.catalog.verifyUserCanRequest(
+      requestingUserContext,
+      request);
 
     return request;
   }
@@ -114,8 +129,9 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
   /**
    * Activate an entitlement that permits self-approval.
    */
-  public final Activation<TEntitlementId> activate(
-    JitActivationRequest<TEntitlementId> request
+  public final @NotNull Activation activate(
+    @NotNull TUserContext userContext,
+    @NotNull JitActivationRequest<TEntitlementId> request
   ) throws AccessException, AlreadyExistsException, IOException
   {
     Preconditions.checkNotNull(policy, "policy");
@@ -128,34 +144,32 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
     //
     // Check that the user is (still) allowed to activate this entitlement.
     //
-    this.catalog.verifyUserCanRequest(request);
+    this.catalog.verifyUserCanRequest(userContext, request);
 
     //
     // Request is legit, apply it.
     //
-    provisionAccess(request);
-
-    return new Activation<>(request);
+    return provisionAccess(request);
   }
 
   /**
    * Approve another user's request.
    */
-  public final Activation<TEntitlementId> approve(
-    UserId approvingUser,
-    MpaActivationRequest<TEntitlementId> request
+  public final @NotNull Activation approve(
+    @NotNull TUserContext userContext,
+    @NotNull MpaActivationRequest<TEntitlementId> request
   ) throws AccessException, AlreadyExistsException, IOException
   {
     Preconditions.checkNotNull(policy, "policy");
 
-    if (approvingUser.equals(request.requestingUser())) {
+    if (userContext.user().equals(request.requestingUser())) {
       throw new IllegalArgumentException(
         "MPA activation requires the caller and beneficiary to be the different");
     }
 
-    if (!request.reviewers().contains(approvingUser)) {
+    if (!request.reviewers().contains(userContext.user())) {
       throw new AccessDeniedException(
-        String.format("The request does not permit approval by %s", approvingUser));
+        String.format("The request does not permit approval by %s", userContext.user()));
     }
 
     //
@@ -166,42 +180,40 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
     //
     // Check that the user is (still) allowed to request this entitlement.
     //
-    this.catalog.verifyUserCanRequest(request);
+    this.catalog.verifyUserCanRequest(userContext, request);
 
     //
     // Check that the approving user is (still) allowed to approve this entitlement.
     //
-    this.catalog.verifyUserCanApprove(approvingUser, request);
+    this.catalog.verifyUserCanApprove(userContext, request);
 
     //
     // Request is legit, apply it.
     //
-    provisionAccess(approvingUser, request);
-
-    return new Activation<>(request);
+    return provisionAccess(userContext.user(), request);
   }
 
   /**
    * Apply a request.
    */
-  protected abstract void provisionAccess(
-    JitActivationRequest<TEntitlementId> request
+  protected abstract Activation provisionAccess(
+    @NotNull JitActivationRequest<TEntitlementId> request
   ) throws AccessException, AlreadyExistsException, IOException;
 
 
   /**
    * Apply a request.
    */
-  protected abstract void provisionAccess(
-    UserId approvingUser,
-    MpaActivationRequest<TEntitlementId> request
+  protected abstract Activation provisionAccess(
+    @NotNull UserId approvingUser,
+    @NotNull MpaActivationRequest<TEntitlementId> request
   ) throws AccessException, AlreadyExistsException, IOException;
 
   /**
    * Create a converter for turning MPA requests into JWTs, and
    * vice versa.
    */
-  public abstract JsonWebTokenConverter<MpaActivationRequest<TEntitlementId>> createTokenConverter();
+  public abstract @NotNull JsonWebTokenConverter<MpaActivationRequest<TEntitlementId>> createTokenConverter();
 
   // -------------------------------------------------------------------------
   // Inner classes.
@@ -210,12 +222,12 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
   protected static class JitRequest<TEntitlementId extends EntitlementId>
     extends JitActivationRequest<TEntitlementId> {
     public JitRequest(
-      ActivationId id,
-      UserId requestingUser,
-      Set<TEntitlementId> entitlements,
-      String justification,
-      Instant startTime,
-      Duration duration
+      @NotNull ActivationId id,
+      @NotNull UserId requestingUser,
+      @NotNull Set<TEntitlementId> entitlements,
+      @NotNull String justification,
+      @NotNull Instant startTime,
+      @NotNull Duration duration
     ) {
       super(id, requestingUser, entitlements, justification, startTime, duration);
     }
@@ -224,13 +236,13 @@ public abstract class EntitlementActivator<TEntitlementId extends EntitlementId>
   protected static class MpaRequest<TEntitlementId extends EntitlementId>
     extends MpaActivationRequest<TEntitlementId> {
     public MpaRequest(
-      ActivationId id,
-      UserId requestingUser,
-      Set<TEntitlementId> entitlements,
-      Set<UserId> reviewers,
-      String justification,
-      Instant startTime,
-      Duration duration
+      @NotNull ActivationId id,
+      @NotNull UserId requestingUser,
+      @NotNull Set<TEntitlementId> entitlements,
+      @NotNull Set<UserId> reviewers,
+      @NotNull String justification,
+      @NotNull Instant startTime,
+      @NotNull Duration duration
     ) {
       super(id, requestingUser, entitlements, reviewers, justification, startTime, duration);
 

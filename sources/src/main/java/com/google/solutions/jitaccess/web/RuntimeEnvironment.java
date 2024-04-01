@@ -22,44 +22,39 @@
 package com.google.solutions.jitaccess.web;
 
 import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonObjectParser;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.GenericData;
-import com.google.api.services.cloudasset.v1.model.Asset;
 import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.solutions.jitaccess.core.ApplicationVersion;
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.EmailMapping;
+import com.google.solutions.jitaccess.core.auth.UserId;
 import com.google.solutions.jitaccess.core.catalog.RegexJustificationPolicy;
 import com.google.solutions.jitaccess.core.catalog.TokenSigner;
-import com.google.solutions.jitaccess.core.catalog.project.AssetInventoryRepository;
-import com.google.solutions.jitaccess.core.catalog.project.MpaProjectRoleCatalog;
-import com.google.solutions.jitaccess.core.catalog.project.PolicyAnalyzerRepository;
-import com.google.solutions.jitaccess.core.catalog.project.ProjectRoleRepository;
+import com.google.solutions.jitaccess.core.catalog.project.*;
 import com.google.solutions.jitaccess.core.clients.*;
 import com.google.solutions.jitaccess.core.notifications.MailNotificationService;
 import com.google.solutions.jitaccess.core.notifications.NotificationService;
 import com.google.solutions.jitaccess.core.notifications.PubSubNotificationService;
-import com.google.solutions.jitaccess.web.rest.ApiResource;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Singleton;
 import jakarta.ws.rs.core.UriBuilder;
 import jakarta.ws.rs.core.UriInfo;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Provides access to runtime configuration (AppEngine, local). To be injected using CDI.
@@ -72,7 +67,7 @@ public class RuntimeEnvironment {
 
   private final String projectId;
   private final String projectNumber;
-  private final UserId applicationPrincipal;
+  private final @NotNull UserId applicationPrincipal;
   private final GoogleCredentials applicationCredentials;
 
   /**
@@ -84,9 +79,14 @@ public class RuntimeEnvironment {
   // Private helpers.
   // -------------------------------------------------------------------------
 
-  private static HttpResponse getMetadata(String path) throws IOException {
-    GenericUrl genericUrl = new GenericUrl(ComputeEngineCredentials.getMetadataServerUrl() + path);
-    HttpRequest request = new NetHttpTransport().createRequestFactory().buildGetRequest(genericUrl);
+  private static HttpResponse getMetadata() throws IOException {
+    var genericUrl = new GenericUrl(
+      ComputeEngineCredentials.getMetadataServerUrl() +
+        "/computeMetadata/v1/project/?recursive=true");
+
+    var request = new NetHttpTransport()
+      .createRequestFactory()
+      .buildGetRequest(genericUrl);
 
     request.setParser(new JsonObjectParser(GsonFactory.getDefaultInstance()));
     request.getHeaders().set("Metadata-Flavor", "Google");
@@ -139,7 +139,7 @@ public class RuntimeEnvironment {
       //
       try {
         GenericData projectMetadata =
-          getMetadata("/computeMetadata/v1/project/?recursive=true").parseAs(GenericData.class);
+          getMetadata().parseAs(GenericData.class);
 
         this.projectId = (String) projectMetadata.get("projectId");
         this.projectNumber = projectMetadata.get("numericProjectId").toString();
@@ -258,7 +258,7 @@ public class RuntimeEnvironment {
     return Boolean.getBoolean(CONFIG_DEBUG_MODE);
   }
 
-  public UriBuilder createAbsoluteUriBuilder(UriInfo uriInfo) {
+  public UriBuilder createAbsoluteUriBuilder(@NotNull UriInfo uriInfo) {
     return uriInfo
       .getBaseUriBuilder()
       .scheme(isRunningOnAppEngine() || isRunningOnCloudRun() ? "https" : "http");
@@ -272,7 +272,7 @@ public class RuntimeEnvironment {
     return projectNumber;
   }
 
-  public UserId getApplicationPrincipal() {
+  public @NotNull UserId getApplicationPrincipal() {
     return applicationPrincipal;
   }
 
@@ -286,7 +286,7 @@ public class RuntimeEnvironment {
   }
 
   @Produces
-  public TokenSigner.Options getTokenServiceOptions() {
+  public @NotNull TokenSigner.Options getTokenServiceOptions() {
     //
     // NB. The clock for activations "starts ticking" when the activation was
     // requested. The time allotted for reviewers to approve the request
@@ -303,7 +303,7 @@ public class RuntimeEnvironment {
 
   @Produces
   @Singleton
-  public NotificationService getPubSubNotificationService(
+  public @NotNull NotificationService getPubSubNotificationService(
     PubSubClient pubSubClient
   ) {
     if (this.configuration.topicName.isValid()) {
@@ -319,8 +319,9 @@ public class RuntimeEnvironment {
 
   @Produces
   @Singleton
-  public NotificationService getEmailNotificationService(
-    SecretManagerClient secretManagerClient
+  public @NotNull NotificationService getEmailNotificationService(
+    @NotNull SecretManagerClient secretManagerClient,
+    @NotNull EmailMapping emailMapping
   ) {
     //
     // Configure SMTP if possible, and fall back to a fail-safe
@@ -331,7 +332,7 @@ public class RuntimeEnvironment {
         this.configuration.smtpHost.getValue(),
         this.configuration.smtpPort.getValue(),
         this.configuration.smtpSenderName.getValue(),
-        this.configuration.smtpSenderAddress.getValue(),
+        new EmailAddress(this.configuration.smtpSenderAddress.getValue()),
         this.configuration.smtpEnableStartTls.getValue(),
         this.configuration.getSmtpExtraOptionsMap());
 
@@ -352,6 +353,7 @@ public class RuntimeEnvironment {
 
       return new MailNotificationService(
         new SmtpClient(secretManagerClient, options),
+        emailMapping,
         new MailNotificationService.Options(this.configuration.timeZoneForNotifications.getValue()));
     }
     else {
@@ -360,13 +362,18 @@ public class RuntimeEnvironment {
   }
 
   @Produces
-  public ApiResource.Options getApiOptions() {
-    return new ApiResource.Options(
+  public @NotNull EmailMapping getEmailMapping() {
+    return new EmailMapping(this.configuration.smtpAddressMapping.getValue());
+  }
+
+  @Produces
+  public @NotNull ProjectRoleActivator.Options getProjectRoleActivatorOptions() {
+    return new ProjectRoleActivator.Options(
       this.configuration.maxNumberOfEntitlementsPerSelfApproval.getValue());
   }
 
   @Produces
-  public HttpTransport.Options getHttpTransportOptions() {
+  public @NotNull HttpTransport.Options getHttpTransportOptions() {
     return new HttpTransport.Options(
       this.configuration.backendConnectTimeout.getValue(),
       this.configuration.backendReadTimeout.getValue(),
@@ -374,14 +381,14 @@ public class RuntimeEnvironment {
   }
 
   @Produces
-  public RegexJustificationPolicy.Options getRegexJustificationPolicyOptions() {
+  public @NotNull RegexJustificationPolicy.Options getRegexJustificationPolicyOptions() {
     return new RegexJustificationPolicy.Options(
       this.configuration.justificationHint.getValue(),
       Pattern.compile(this.configuration.justificationPattern.getValue()));
   }
 
   @Produces
-  public MpaProjectRoleCatalog.Options getIamPolicyCatalogOptions() {
+  public @NotNull MpaProjectRoleCatalog.Options getIamPolicyCatalogOptions() {
     return new MpaProjectRoleCatalog.Options(
       this.configuration.availableProjectsQuery.isValid()
         ? this.configuration.availableProjectsQuery.getValue()
@@ -392,18 +399,24 @@ public class RuntimeEnvironment {
   }
 
   @Produces
-  public DirectoryGroupsClient.Options getDirectoryGroupsClientOptions() {
+  public @NotNull DirectoryGroupsClient.Options getDirectoryGroupsClientOptions() {
     return new DirectoryGroupsClient.Options(
       this.configuration.customerId.getValue());
   }
 
   @Produces
+  public @NotNull CloudIdentityGroupsClient.Options getCloudIdentityGroupsClientOptions() {
+    return new CloudIdentityGroupsClient.Options(
+      this.configuration.customerId.getValue());
+  }
+
+  @Produces
   @Singleton
-  public ProjectRoleRepository getProjectRoleRepository(
-    Executor executor,
-    Instance<DirectoryGroupsClient> groupsClient,
-    PolicyAnalyzerClient policyAnalyzerClient,
-    ResourceManagerClient resourceManagerClient
+  public @NotNull ProjectRoleRepository getProjectRoleRepository(
+    @NotNull Executor executor,
+    @NotNull Instance<DirectoryGroupsClient> groupsClient,
+    @NotNull PolicyAnalyzerClient policyAnalyzerClient,
+    @NotNull ResourceManagerClient resourceManagerClient
   ) {
     switch (this.configuration.catalog.getValue()) {
       case ASSETINVENTORY:
@@ -420,5 +433,26 @@ public class RuntimeEnvironment {
           resourceManagerClient,
           new PolicyAnalyzerRepository.Options(this.configuration.scope.getValue(), this.configuration.requiredProjectTagPath.getValue()));
     }
+  }
+
+  @Produces
+  @Singleton
+  public @NotNull Diagnosable verifyDevModeIsDisabled() {
+    final String name = "DevModeIsDisabled";
+    return new Diagnosable() {
+      @Override
+      public Collection<DiagnosticsResult> diagnose() {
+        if (!isDebugModeEnabled()) {
+          return List.of(new DiagnosticsResult(name));
+        }
+        else {
+          return List.of(
+            new DiagnosticsResult(
+              name,
+              false,
+              "Application is running in development mode"));
+        }
+      }
+    };
   }
 }

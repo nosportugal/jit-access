@@ -35,6 +35,7 @@ import com.google.solutions.jitaccess.core.NotAuthenticatedException;
 
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.inject.Singleton;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -42,12 +43,12 @@ import java.util.Arrays;
 
 @Singleton
 public class PubSubClient {
-  private final GoogleCredentials credentials;
-  private final HttpTransport.Options httpOptions;
+  private final @NotNull GoogleCredentials credentials;
+  private final @NotNull HttpTransport.Options httpOptions;
 
   public PubSubClient(
-    GoogleCredentials credentials,
-    HttpTransport.Options httpOptions)
+    @NotNull GoogleCredentials credentials,
+    @NotNull HttpTransport.Options httpOptions)
   {
     Preconditions.checkNotNull(credentials, "credentials");
     Preconditions.checkNotNull(httpOptions, "httpOptions");
@@ -56,7 +57,7 @@ public class PubSubClient {
     this.httpOptions = httpOptions;
   }
 
-  private Pubsub createClient() throws IOException {
+  private @NotNull Pubsub createClient() throws IOException {
     try {
       return new Pubsub.Builder(
           HttpTransport.newTransport(),
@@ -72,8 +73,8 @@ public class PubSubClient {
 
   @WithSpan
   public String publish(
-    PubSubTopic topic,
-    PubsubMessage message
+    @NotNull PubSubTopic topic,
+    @NotNull PubsubMessage message
   ) throws AccessException, IOException {
     var client = createClient();
 

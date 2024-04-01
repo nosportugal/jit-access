@@ -23,19 +23,20 @@ package com.google.solutions.jitaccess.core.catalog.project;
 
 import com.google.api.services.cloudasset.v1.model.Expr;
 import com.google.api.services.cloudasset.v1.model.IamPolicyAnalysis;
+import com.google.api.services.cloudasset.v1.model.IamPolicyAnalysisResult;
 import com.google.common.base.Preconditions;
+import com.google.solutions.jitaccess.cel.TemporaryIamCondition;
 import com.google.solutions.jitaccess.core.AccessException;
-import com.google.solutions.jitaccess.core.ProjectId;
+import com.google.solutions.jitaccess.core.catalog.*;
 import com.google.solutions.jitaccess.core.RoleBinding;
-import com.google.solutions.jitaccess.core.UserId;
-import com.google.solutions.jitaccess.core.catalog.ActivationType;
-import com.google.solutions.jitaccess.core.catalog.Entitlement;
-import com.google.solutions.jitaccess.core.catalog.EntitlementSet;
+import com.google.solutions.jitaccess.core.auth.UserId;
 import com.google.solutions.jitaccess.core.clients.PolicyAnalyzerClient;
 import com.google.solutions.jitaccess.core.clients.ResourceManagerClient;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -47,17 +48,19 @@ import java.util.stream.Stream;
  * are annotated with a special IAM condition (making the binding
  * "eligible").
  */
-public class PolicyAnalyzerRepository implements ProjectRoleRepository {
-  private final Options options;
-  private final PolicyAnalyzerClient policyAnalyzerClient;
-  private final ResourceManagerClient resourceManagerClient;
+public class PolicyAnalyzerRepository extends ProjectRoleRepository {
+  private final @NotNull Options options;
+  private final @NotNull PolicyAnalyzerClient policyAnalyzerClient;
+  private final @NotNull ResourceManagerClient resourceManagerClient;
+
 
   public PolicyAnalyzerRepository(
-    PolicyAnalyzerClient policyAnalyzerClient,
-    ResourceManagerClient resourceManagerClient,
-    Options options
+    @NotNull PolicyAnalyzerClient policyAnalyzerClient,
+    @NotNull ResourceManagerClient resourceManagerClient,
+    @NotNull Options options
   ) {
     Preconditions.checkNotNull(policyAnalyzerClient, "assetInventoryClient");
+    Preconditions.checkNotNull(policyAnalyzerClient, "resourceManagerClient");
     Preconditions.checkNotNull(options, "options");
 
     this.policyAnalyzerClient = policyAnalyzerClient;
@@ -65,11 +68,16 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
     this.options = options;
   }
 
-  static List<RoleBinding> findRoleBindings(
-    IamPolicyAnalysis analysisResult,
-    Predicate<Expr> conditionPredicate,
-    Predicate<String> conditionEvaluationPredicate
+  private record ConditionalRoleBinding(RoleBinding binding, Expr condition) {}
+
+  static @NotNull List<ConditionalRoleBinding> findRoleBindings(
+    @NotNull IamPolicyAnalysis analysisResult,
+    @NotNull Predicate<Expr> conditionPredicate,
+    @NotNull Predicate<String> conditionEvaluationPredicate
   ) {
+    Function<IamPolicyAnalysisResult, Expr> getIamCondition =
+      res -> res.getIamBinding() != null ? res.getIamBinding().getCondition() : null;
+
     //
     // NB. We don't really care which resource a policy is attached to
     // (indicated by AttachedResourceFullName). Instead, we care about
@@ -79,9 +87,7 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
       .flatMap(Collection::stream)
 
       // Narrow down to IAM bindings with a specific IAM condition.
-      .filter(result -> conditionPredicate.test(result.getIamBinding() != null
-        ? result.getIamBinding().getCondition()
-        : null))
+      .filter(result -> conditionPredicate.test(getIamCondition.apply(result)))
       .flatMap(result -> result
         .getAccessControlLists()
         .stream()
@@ -94,10 +100,12 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
         // Collect all (supported) resources covered by these bindings/ACLs.
         .flatMap(acl -> acl.getResources()
           .stream()
-          .filter(res -> ProjectId.isProjectFullResourceName(res.getFullResourceName()))
-          .map(res -> new RoleBinding(
-            res.getFullResourceName(),
-            result.getIamBinding().getRole()))))
+          .filter(res -> ProjectId.canParse(res.getFullResourceName()))
+          .map(res -> new ConditionalRoleBinding(
+            new RoleBinding(
+              res.getFullResourceName(),
+              result.getIamBinding().getRole()),
+            getIamCondition.apply(result)))))
       .collect(Collectors.toList());
   }
 
@@ -106,8 +114,8 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
   //---------------------------------------------------------------------------
 
   @Override
-  public SortedSet<ProjectId> findProjectsWithEntitlements(
-    UserId user
+  public @NotNull SortedSet<ProjectId> findProjectsWithEntitlements(
+    @NotNull UserId user
   ) throws AccessException, IOException {
 
     Preconditions.checkNotNull(user, "user");
@@ -146,7 +154,7 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
 
     var projectIds = roleBindings
       .stream()
-      .map(b -> ProjectId.fromFullResourceName(b.fullResourceName()))
+      .map(b -> ProjectId.parse(b.binding.fullResourceName()))
       .collect(Collectors.toCollection(TreeSet::new));
 
     if (options.requiredProjectTagPath == null || options.requiredProjectTagPath.isBlank()) return projectIds;
@@ -167,11 +175,10 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
   }
 
   @Override
-  public EntitlementSet<ProjectRoleBinding> findEntitlements(
-    UserId user,
-    ProjectId projectId,
-    EnumSet<ActivationType> typesToInclude,
-    EnumSet<Entitlement.Status> statusesToInclude
+  public @NotNull EntitlementSet<ProjectRole> findEntitlements(
+    @NotNull UserId user,
+    @NotNull ProjectId projectId,
+    @NotNull EnumSet<ActivationType> typesToInclude
   ) throws AccessException, IOException {
 
     Preconditions.checkNotNull(user, "user");
@@ -197,102 +204,106 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
       Optional.of(projectId.getFullResourceName()),
       false);
 
-    var allAvailable = new TreeSet<Entitlement<ProjectRoleBinding>>();
-    if (statusesToInclude.contains(Entitlement.Status.AVAILABLE)) {
-
-      //
-      // Find all JIT-eligible role bindings. The bindings are
-      // conditional and have a special condition that serves
-      // as marker.
-      //
-      Set<Entitlement<ProjectRoleBinding>> jitEligible;
-      if (typesToInclude.contains(ActivationType.JIT)) {
-        jitEligible = findRoleBindings(
-          analysisResult,
-          condition -> JitConstraints.isJitAccessConstraint(condition),
-          evalResult -> "CONDITIONAL".equalsIgnoreCase(evalResult))
-          .stream()
-          .map(binding -> new Entitlement<ProjectRoleBinding>(
-            new ProjectRoleBinding(binding),
-            binding.role(),
-            ActivationType.JIT,
-            Entitlement.Status.AVAILABLE))
-          .collect(Collectors.toSet());
-      }
-      else {
-        jitEligible = Set.of();
-      }
-
-      //
-      // Find all MPA-eligible role bindings. The bindings are
-      // conditional and have a special condition that serves
-      // as marker.
-      //
-      Set<Entitlement<ProjectRoleBinding>> mpaEligible;
-      if (typesToInclude.contains(ActivationType.MPA)) {
-        mpaEligible = findRoleBindings(
-          analysisResult,
-          condition -> JitConstraints.isMultiPartyApprovalConstraint(condition),
-          evalResult -> "CONDITIONAL".equalsIgnoreCase(evalResult))
-          .stream()
-          .map(binding -> new Entitlement<ProjectRoleBinding>(
-            new ProjectRoleBinding(binding),
-            binding.role(),
-            ActivationType.MPA,
-            Entitlement.Status.AVAILABLE))
-          .collect(Collectors.toSet());
-      }
-      else {
-        mpaEligible = Set.of();
-      }
-
-      //
-      // Determine effective set of eligible roles. If a role is both JIT- and
-      // MPA-eligible, only retain the JIT-eligible one.
-      //
-      allAvailable.addAll(jitEligible);
-      allAvailable.addAll(mpaEligible
+    //
+    // Find all JIT-eligible role bindings. The bindings are
+    // conditional and have a special condition that serves
+    // as marker.
+    //
+    Set<Entitlement<ProjectRole>> jitEligible;
+    if (typesToInclude.contains(ActivationType.JIT)) {
+      jitEligible = findRoleBindings(
+        analysisResult,
+        condition -> JitConstraints.isJitAccessConstraint(condition),
+        evalResult -> "CONDITIONAL".equalsIgnoreCase(evalResult))
         .stream()
-        .filter(r -> !jitEligible.stream().anyMatch(a -> a.id().equals(r.id())))
-        .collect(Collectors.toList()));
+        .map(conditionalBinding -> new Entitlement<ProjectRole>(
+          new ProjectRole(conditionalBinding.binding),
+          conditionalBinding.binding.role(),
+          ActivationType.JIT))
+        .collect(Collectors.toSet());
+    }
+    else {
+      jitEligible = Set.of();
     }
 
-    var allActive = new HashSet<ProjectRoleBinding>();
-    if (statusesToInclude.contains(Entitlement.Status.ACTIVE)) {
-      //
-      // Find role bindings which have already been activated.
-      // These bindings have a time condition that we created, and
-      // the condition evaluates to true (indicating it's still
-      // valid).
-      //
+    //
+    // Find all MPA-eligible role bindings. The bindings are
+    // conditional and have a special condition that serves
+    // as marker.
+    //
+    Set<Entitlement<ProjectRole>> mpaEligible;
+    if (typesToInclude.contains(ActivationType.MPA)) {
+      mpaEligible = findRoleBindings(
+        analysisResult,
+        condition -> JitConstraints.isMultiPartyApprovalConstraint(condition),
+        evalResult -> "CONDITIONAL".equalsIgnoreCase(evalResult))
+        .stream()
+        .map(conditionalBinding -> new Entitlement<ProjectRole>(
+          new ProjectRole(conditionalBinding.binding),
+          conditionalBinding.binding.role(),
+          ActivationType.MPA))
+        .collect(Collectors.toSet());
+    }
+    else {
+      mpaEligible = Set.of();
+    }
 
-      var activeBindings = findRoleBindings(
+    //
+    // Determine effective set of eligible roles. If a role is both JIT- and
+    // MPA-eligible, only retain the JIT-eligible one.
+    //
+    var allAvailable = new TreeSet<Entitlement<ProjectRole>>();
+    allAvailable.addAll(jitEligible);
+    allAvailable.addAll(mpaEligible
+      .stream()
+      .filter(r -> jitEligible.stream().noneMatch(a -> a.id().equals(r.id())))
+      .toList());
+
+    //
+    // Find role bindings that represent an activation.
+    // These bindings have a time condition that we created, and
+    // the condition evaluates to TRUE (indicating it's still
+    // valid).
+    //
+    var currentActivations = findRoleBindings(
         analysisResult,
         condition -> JitConstraints.isActivated(condition),
-        evalResult -> "TRUE".equalsIgnoreCase(evalResult));
+        evalResult -> "TRUE".equalsIgnoreCase(evalResult))
+      .stream()
+      .collect(Collectors.toMap(
+        conditionalBinding -> new ProjectRole(conditionalBinding.binding),
+        conditionalBinding -> new Activation(
+          new TemporaryIamCondition(conditionalBinding.condition.getExpression()).getValidity())));
 
-      allActive.addAll(activeBindings
-        .stream()
-        .map(b -> new ProjectRoleBinding(b))
-        .collect(Collectors.toSet()));
-    }
+    //
+    // Do the same for conditions that evaluated to FALSE.
+    //
+    var expiredActivations = findRoleBindings(
+        analysisResult,
+        condition -> JitConstraints.isActivated(condition),
+        evalResult -> "FALSE".equalsIgnoreCase(evalResult))
+      .stream()
+      .collect(Collectors.toMap(
+        conditionalBinding -> new ProjectRole(conditionalBinding.binding),
+        conditionalBinding -> new Activation(
+          new TemporaryIamCondition(conditionalBinding.condition.getExpression()).getValidity())));
 
     var warnings = Stream.ofNullable(analysisResult.getNonCriticalErrors())
       .flatMap(Collection::stream)
       .map(e -> e.getCause())
       .collect(Collectors.toSet());
 
-    return new EntitlementSet<>(allAvailable, allActive, warnings);
+    return new EntitlementSet<>(allAvailable, currentActivations, expiredActivations, warnings);
   }
 
   @Override
-  public Set<UserId> findEntitlementHolders(
-    ProjectRoleBinding roleBinding,
-    ActivationType activationType
+  public @NotNull Set<UserId> findEntitlementHolders(
+    @NotNull ProjectRole roleBinding,
+    @NotNull ActivationType activationType
   ) throws AccessException, IOException {
 
     Preconditions.checkNotNull(roleBinding, "roleBinding");
-    assert ProjectId.isProjectFullResourceName(roleBinding.roleBinding().fullResourceName());
+    assert ProjectId.canParse(roleBinding.roleBinding().fullResourceName());
 
     var analysisResult = this.policyAnalyzerClient.findPermissionedPrincipalsByResource(
       this.options.scope,
@@ -323,7 +334,9 @@ public class PolicyAnalyzerRepository implements ProjectRoleRepository {
    * @param scope Scope to use for queries.
    */
   public record Options(
-    String scope, String requiredProjectTagPath) {
+    @NotNull String scope,
+    String requiredProjectTagPath
+  ) {
 
     public Options {
       Preconditions.checkNotNull(scope, "scope");

@@ -22,7 +22,8 @@
 package com.google.solutions.jitaccess.core.catalog;
 
 import com.google.common.base.Preconditions;
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -34,16 +35,16 @@ import java.util.Set;
  */
 public abstract class MpaActivationRequest<TEntitlementId extends EntitlementId>
   extends ActivationRequest<TEntitlementId> {
-  private final Collection<UserId> reviewers;
+  private final @NotNull Collection<UserId> reviewers;
 
   protected MpaActivationRequest(
-    ActivationId id,
-    UserId requestingUser,
-    Set<TEntitlementId> entitlements,
-    Set<UserId> reviewers,
-    String justification,
-    Instant startTime,
-    Duration duration) {
+    @NotNull ActivationId id,
+    @NotNull UserId requestingUser,
+    @NotNull Set<TEntitlementId> entitlements,
+    @NotNull Set<UserId> reviewers,
+    @NotNull String justification,
+    @NotNull Instant startTime,
+    @NotNull Duration duration) {
     super(
       id,
       requestingUser,
@@ -57,12 +58,12 @@ public abstract class MpaActivationRequest<TEntitlementId extends EntitlementId>
     this.reviewers = reviewers;
   }
 
-  public Collection<UserId> reviewers() {
+  public @NotNull Collection<UserId> reviewers() {
     return this.reviewers;
   }
 
   @Override
-  public final ActivationType type() {
+  public final @NotNull ActivationType type() {
     return ActivationType.MPA;
   }
 }

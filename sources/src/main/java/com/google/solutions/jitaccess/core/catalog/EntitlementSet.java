@@ -22,84 +22,42 @@
 package com.google.solutions.jitaccess.core.catalog;
 
 import com.google.common.base.Preconditions;
+import org.jetbrains.annotations.NotNull;
 
+import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 /**
- * Set of entitlements
+ * Set of entitlements and associated activations.
  *
- * @param availableEntitlements available entitlements, regardless of status
- * @param activeEntitlementIds IDs of active entitlements
+ * NB. The current/expired activations might refer to
+ *     entitlements that are no longer available.
+ *
+ * @param available entitlements available to the user
+ * @param currentActivations currently active entitlements
+ * @param expiredActivations previously active (but now expired) entitlements
  * @param warnings encountered warnings, if any.
  */
 public record EntitlementSet<TId extends EntitlementId>(
-  Set<Entitlement<TId>> availableEntitlements,
-  Set<TId> activeEntitlementIds,
-  Set<String> warnings
+  @NotNull SortedSet<Entitlement<TId>> available,
+  @NotNull Map<TId, Activation> currentActivations,
+  @NotNull Map<TId, Activation> expiredActivations,
+  @NotNull Set<String> warnings
 ) {
   public EntitlementSet {
-    Preconditions.checkNotNull(availableEntitlements, "availableEntitlements");
-    Preconditions.checkNotNull(activeEntitlementIds, "activeEntitlementIds");
+    Preconditions.checkNotNull(available, "available");
+    Preconditions.checkNotNull(currentActivations, "currentActivations");
+    Preconditions.checkNotNull(expiredActivations, "expiredActivations");
     Preconditions.checkNotNull(warnings, "warnings");
 
-    assert availableEntitlements.stream().allMatch(e -> e.status() == Entitlement.Status.AVAILABLE);
+    Preconditions.checkArgument(currentActivations.values().stream().allMatch(a -> a.isValid(Instant.now())));
+    Preconditions.checkArgument(expiredActivations.values().stream().allMatch(a -> !a.isValid(Instant.now())));
   }
 
-  /**
-   * @return consolidated set of entitlements including available and active ones.
-   */
-  public SortedSet<Entitlement<TId>> allEntitlements() {
-    //
-    // Return a set containing:
-    //
-    //  1. Available entitlements
-    //  2. Active entitlements
-    //
-    // where (1) and (2) don't overlap.
-    //
-    var availableAndInactive = this.availableEntitlements
-      .stream()
-      .filter(ent -> !this.activeEntitlementIds.contains(ent.id()))
-      .collect(Collectors.toCollection(TreeSet::new));
-
-    assert availableAndInactive.stream().noneMatch(e -> this.activeEntitlementIds.contains(e.id()));
-
-    var consolidatedSet = new TreeSet<Entitlement<TId>>(availableAndInactive);
-    for (var activeEntitlementId : this.activeEntitlementIds) {
-      //
-      // Find the corresponding entitlement to determine
-      // whether this is JIT or MPA-eligible.
-      //
-      var correspondingEntitlement = this.availableEntitlements
-        .stream()
-        .filter(ent -> ent.id().equals(activeEntitlementId))
-        .findFirst();
-      if (correspondingEntitlement.isPresent()) {
-        consolidatedSet.add(new Entitlement<>(
-          activeEntitlementId,
-          correspondingEntitlement.get().name(),
-          correspondingEntitlement.get().activationType(),
-          Entitlement.Status.ACTIVE));
-      }
-      else {
-        //
-        // Active, but no longer available for activation.
-        //
-        consolidatedSet.add(new Entitlement<>(
-          activeEntitlementId,
-          activeEntitlementId.id(),
-          ActivationType.NONE,
-          Entitlement.Status.ACTIVE));
-      }
-    }
-
-    return consolidatedSet;
-  }
-
-  public static <TId extends EntitlementId> EntitlementSet<TId> empty() {
-    return new EntitlementSet<TId>(new TreeSet<>(), Set.of(), Set.of());
+  public static <TId extends EntitlementId> @NotNull EntitlementSet<TId> empty() {
+    return new EntitlementSet<TId>(new TreeSet<>(), Map.of(), Map.of(), Set.of());
   }
 }

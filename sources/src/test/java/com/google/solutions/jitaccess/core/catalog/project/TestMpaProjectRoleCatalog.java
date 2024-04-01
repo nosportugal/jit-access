@@ -22,19 +22,16 @@
 package com.google.solutions.jitaccess.core.catalog.project;
 
 import com.google.solutions.jitaccess.core.AccessDeniedException;
-import com.google.solutions.jitaccess.core.ProjectId;
+import com.google.solutions.jitaccess.core.catalog.ProjectId;
 import com.google.solutions.jitaccess.core.RoleBinding;
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
 import com.google.solutions.jitaccess.core.catalog.*;
 import com.google.solutions.jitaccess.core.clients.ResourceManagerClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.Duration;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
@@ -43,7 +40,7 @@ import static org.mockito.Mockito.*;
 public class TestMpaProjectRoleCatalog {
 
   private static final UserId SAMPLE_REQUESTING_USER = new UserId("user@example.com");
-  private static final UserId SAMPLE_APPROVIING_USER = new UserId("approver@example.com");
+  private static final UserId SAMPLE_APPROVING_USER = new UserId("approver@example.com");
   private static final ProjectId SAMPLE_PROJECT = new ProjectId("project-1");
   private static final String SAMPLE_ROLE = "roles/resourcemanager.role1";
 
@@ -195,8 +192,7 @@ public class TestMpaProjectRoleCatalog {
       .findEntitlements(
         eq(SAMPLE_REQUESTING_USER),
         eq(SAMPLE_PROJECT),
-        eq(EnumSet.of(ActivationType.JIT)),
-        eq(EnumSet.of(Entitlement.Status.AVAILABLE))))
+        eq(EnumSet.of(ActivationType.JIT))))
       .thenReturn(EntitlementSet.empty());
 
     assertThrows(
@@ -205,7 +201,7 @@ public class TestMpaProjectRoleCatalog {
         SAMPLE_REQUESTING_USER,
         SAMPLE_PROJECT,
         ActivationType.JIT,
-        List.of(new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)))));
+        List.of(new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)))));
   }
 
   @Test
@@ -218,17 +214,15 @@ public class TestMpaProjectRoleCatalog {
       new MpaProjectRoleCatalog.Options(null, Duration.ofMinutes(30), 1, 2));
 
     var mpaEntitlement = new Entitlement<>(
-      new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
+      new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
       "-",
-      ActivationType.MPA,
-      Entitlement.Status.AVAILABLE);
+      ActivationType.MPA);
 
     when(policyAnalyzer
       .findEntitlements(
         eq(SAMPLE_REQUESTING_USER),
         eq(SAMPLE_PROJECT),
-        eq(EnumSet.of(ActivationType.JIT)),
-        eq(EnumSet.of(Entitlement.Status.AVAILABLE))))
+        eq(EnumSet.of(ActivationType.JIT))))
       .thenReturn(EntitlementSet.empty());
 
     assertThrows(
@@ -253,19 +247,19 @@ public class TestMpaProjectRoleCatalog {
       Mockito.mock(ResourceManagerClient.class),
       new MpaProjectRoleCatalog.Options(null, Duration.ofMinutes(30), 1, 2));
 
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
     when(policyAnalyzer
       .findEntitlements(
-        eq(SAMPLE_REQUESTING_USER),
+        eq(requestingUserContext.user()),
         eq(SAMPLE_PROJECT),
-        eq(EnumSet.of(ActivationType.MPA)),
-        eq(EnumSet.of(Entitlement.Status.AVAILABLE))))
+        eq(EnumSet.of(ActivationType.MPA))))
       .thenReturn(EntitlementSet.empty());
 
     assertThrows(
       AccessDeniedException.class,
       () -> catalog.listReviewers(
-        SAMPLE_REQUESTING_USER,
-        new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE))));
+        requestingUserContext,
+        new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE))));
   }
 
   @Test
@@ -278,30 +272,30 @@ public class TestMpaProjectRoleCatalog {
       new MpaProjectRoleCatalog.Options(null, Duration.ofMinutes(30), 1, 2));
 
     var mpaEntitlement = new Entitlement<>(
-      new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
+      new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
       "-",
-      ActivationType.MPA,
-      Entitlement.Status.AVAILABLE);
+      ActivationType.MPA);
 
     when(policyAnalyzer
       .findEntitlements(
         eq(SAMPLE_REQUESTING_USER),
         eq(SAMPLE_PROJECT),
-        eq(EnumSet.of(ActivationType.MPA)),
-        eq(EnumSet.of(Entitlement.Status.AVAILABLE))))
+        eq(EnumSet.of(ActivationType.MPA))))
       .thenReturn(new EntitlementSet<>(
         new TreeSet<>(Set.of(mpaEntitlement)),
-        Set.of(),
+        Map.of(),
+        Map.of(),
         Set.of()));
 
     when(policyAnalyzer
       .findEntitlementHolders(
         eq(mpaEntitlement.id()),
         eq(ActivationType.MPA)))
-      .thenReturn(Set.of(SAMPLE_REQUESTING_USER, SAMPLE_APPROVIING_USER));
+      .thenReturn(Set.of(SAMPLE_REQUESTING_USER, SAMPLE_APPROVING_USER));
 
-    var reviewers = catalog.listReviewers(SAMPLE_REQUESTING_USER, mpaEntitlement.id());
-    assertIterableEquals(Set.of(SAMPLE_APPROVIING_USER), reviewers);
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
+    var reviewers = catalog.listReviewers(requestingUserContext, mpaEntitlement.id());
+    assertIterableEquals(Set.of(SAMPLE_APPROVING_USER), reviewers);
   }
 
   //---------------------------------------------------------------------------
@@ -318,17 +312,15 @@ public class TestMpaProjectRoleCatalog {
       new MpaProjectRoleCatalog.Options(null, Duration.ofMinutes(30), 1, 2));
 
     var jitEntitlement = new Entitlement<>(
-      new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
+      new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
       "-",
-      ActivationType.JIT,
-      Entitlement.Status.AVAILABLE);
+      ActivationType.JIT);
 
     when(policyAnalyzer
       .findEntitlements(
         eq(SAMPLE_REQUESTING_USER),
         eq(SAMPLE_PROJECT),
-        eq(EnumSet.of(ActivationType.MPA)),
-        eq(EnumSet.of(Entitlement.Status.AVAILABLE))))
+        eq(EnumSet.of(ActivationType.MPA))))
       .thenReturn(EntitlementSet.empty());
 
     var request = Mockito.mock(JitActivationRequest.class);
@@ -337,9 +329,10 @@ public class TestMpaProjectRoleCatalog {
     when(request.requestingUser()).thenReturn(SAMPLE_REQUESTING_USER);
     when(request.entitlements()).thenReturn(Set.of(jitEntitlement.id()));
 
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
     assertThrows(
       AccessDeniedException.class,
-      () -> catalog.verifyUserCanRequest(request));
+      () -> catalog.verifyUserCanRequest(requestingUserContext, request));
   }
 
   @Test
@@ -352,20 +345,19 @@ public class TestMpaProjectRoleCatalog {
       new MpaProjectRoleCatalog.Options(null, Duration.ofMinutes(30), 1, 2));
 
     var jitEntitlement = new Entitlement<>(
-      new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
+      new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
       "-",
-      ActivationType.JIT,
-      Entitlement.Status.AVAILABLE);
+      ActivationType.JIT);
 
     when(policyAnalyzer
       .findEntitlements(
         eq(SAMPLE_REQUESTING_USER),
         eq(SAMPLE_PROJECT),
-        eq(EnumSet.of(ActivationType.JIT)),
-        eq(EnumSet.of(Entitlement.Status.AVAILABLE))))
+        eq(EnumSet.of(ActivationType.JIT))))
       .thenReturn(new EntitlementSet<>(
         new TreeSet<>(Set.of(jitEntitlement)),
-        Set.of(),
+        Map.of(),
+        Map.of(),
         Set.of()));
 
     var request = Mockito.mock(JitActivationRequest.class);
@@ -374,7 +366,8 @@ public class TestMpaProjectRoleCatalog {
     when(request.requestingUser()).thenReturn(SAMPLE_REQUESTING_USER);
     when(request.entitlements()).thenReturn(Set.of(jitEntitlement.id()));
 
-    catalog.verifyUserCanRequest(request);
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
+    catalog.verifyUserCanRequest(requestingUserContext, request);
   }
 
   //---------------------------------------------------------------------------
@@ -391,29 +384,28 @@ public class TestMpaProjectRoleCatalog {
       new MpaProjectRoleCatalog.Options(null, Duration.ofMinutes(30), 1, 2));
 
     var mpaEntitlement = new Entitlement<>(
-      new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
+      new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
       "-",
-      ActivationType.MPA,
-      Entitlement.Status.AVAILABLE);
+      ActivationType.MPA);
 
     when(policyAnalyzer
       .findEntitlements(
-        eq(SAMPLE_APPROVIING_USER),
+        eq(SAMPLE_APPROVING_USER),
         eq(SAMPLE_PROJECT),
-        eq(EnumSet.of(ActivationType.MPA)),
-        eq(EnumSet.of(Entitlement.Status.AVAILABLE))))
+        eq(EnumSet.of(ActivationType.MPA))))
       .thenReturn(EntitlementSet.empty());
 
     var request = Mockito.mock(MpaActivationRequest.class);
     when(request.duration()).thenReturn(catalog.options().minActivationDuration());
     when(request.type()).thenReturn(ActivationType.MPA);
     when(request.requestingUser()).thenReturn(SAMPLE_REQUESTING_USER);
-    when(request.reviewers()).thenReturn(Set.of(SAMPLE_APPROVIING_USER));
+    when(request.reviewers()).thenReturn(Set.of(SAMPLE_APPROVING_USER));
     when(request.entitlements()).thenReturn(Set.of(mpaEntitlement.id()));
 
+    var approvingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_APPROVING_USER);
     assertThrows(
       AccessDeniedException.class,
-      () -> catalog.verifyUserCanApprove(SAMPLE_APPROVIING_USER, request));
+      () -> catalog.verifyUserCanApprove(approvingUserContext, request));
   }
 
   @Test
@@ -426,38 +418,38 @@ public class TestMpaProjectRoleCatalog {
       new MpaProjectRoleCatalog.Options(null, Duration.ofMinutes(30), 1, 2));
 
     var mpaEntitlement = new Entitlement<>(
-      new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
+      new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE)),
       "-",
-      ActivationType.MPA,
-      Entitlement.Status.AVAILABLE);
+      ActivationType.MPA);
 
     when(policyAnalyzer
       .findEntitlements(
-        eq(SAMPLE_APPROVIING_USER),
+        eq(SAMPLE_APPROVING_USER),
         eq(SAMPLE_PROJECT),
-        eq(EnumSet.of(ActivationType.MPA)),
-        eq(EnumSet.of(Entitlement.Status.AVAILABLE))))
+        eq(EnumSet.of(ActivationType.MPA))))
       .thenReturn(new EntitlementSet<>(
         new TreeSet<>(Set.of(mpaEntitlement)),
-        Set.of(),
+        Map.of(),
+        Map.of(),
         Set.of()));
 
     var request = Mockito.mock(MpaActivationRequest.class);
     when(request.duration()).thenReturn(catalog.options().minActivationDuration());
     when(request.type()).thenReturn(ActivationType.MPA);
     when(request.requestingUser()).thenReturn(SAMPLE_REQUESTING_USER);
-    when(request.reviewers()).thenReturn(Set.of(SAMPLE_APPROVIING_USER));
+    when(request.reviewers()).thenReturn(Set.of(SAMPLE_APPROVING_USER));
     when(request.entitlements()).thenReturn(Set.of(mpaEntitlement.id()));
 
-    catalog.verifyUserCanApprove(SAMPLE_APPROVIING_USER, request);
+    var approvingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_APPROVING_USER);
+    catalog.verifyUserCanApprove(approvingUserContext, request);
   }
 
   //---------------------------------------------------------------------------
-  // listProjects.
+  // listScopes.
   //---------------------------------------------------------------------------
 
   @Test
-  public void whenProjectQueryProvided_thenListProjectsPerformsProjectSearch() throws Exception {
+  public void whenProjectQueryProvided_thenListScopesPerformsProjectSearch() throws Exception {
     var resourceManager = Mockito.mock(ResourceManagerClient.class);
     when(resourceManager.searchProjectIds(eq("query")))
       .thenReturn(new TreeSet<>(Set.of(
@@ -475,7 +467,8 @@ public class TestMpaProjectRoleCatalog {
         1)
     );
 
-    var projects = catalog.listProjects(SAMPLE_REQUESTING_USER);
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
+    var projects = catalog.listScopes(requestingUserContext);
     assertIterableEquals(
       List.of( // Sorted
         new ProjectId("project-1"),
@@ -485,7 +478,7 @@ public class TestMpaProjectRoleCatalog {
   }
 
   @Test
-  public void whenProjectQueryNotProvided_thenListProjectsPerformsPolicySearch() throws Exception {
+  public void whenProjectQueryNotProvided_thenListScopesPerformsPolicySearch() throws Exception {
     var policyAnalyzer = Mockito.mock(PolicyAnalyzerRepository.class);
     when(policyAnalyzer.findProjectsWithEntitlements(eq(SAMPLE_REQUESTING_USER)))
       .thenReturn(new TreeSet<>(Set.of(
@@ -503,7 +496,8 @@ public class TestMpaProjectRoleCatalog {
         1)
     );
 
-    var projects = catalog.listProjects(SAMPLE_REQUESTING_USER);
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
+    var projects = catalog.listScopes(requestingUserContext);
     assertIterableEquals(
       List.of( // Sorted
         new ProjectId("project-1"),
@@ -522,8 +516,7 @@ public class TestMpaProjectRoleCatalog {
     when(policyAnalyzer.findEntitlements(
       eq(SAMPLE_REQUESTING_USER),
       eq(SAMPLE_PROJECT),
-      eq(EnumSet.of(ActivationType.JIT, ActivationType.MPA)),
-      any()))
+      eq(EnumSet.of(ActivationType.JIT, ActivationType.MPA))))
       .thenReturn(EntitlementSet.empty());
 
     var catalog = new MpaProjectRoleCatalog(
@@ -536,14 +529,14 @@ public class TestMpaProjectRoleCatalog {
         1)
     );
 
-    var entitlements = catalog.listEntitlements(SAMPLE_REQUESTING_USER, SAMPLE_PROJECT);
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
+    var entitlements = catalog.listEntitlements(requestingUserContext, SAMPLE_PROJECT);
     assertNotNull(entitlements);
 
     verify(policyAnalyzer, times(1)).findEntitlements(
       SAMPLE_REQUESTING_USER,
       SAMPLE_PROJECT,
-      EnumSet.of(ActivationType.JIT, ActivationType.MPA),
-      EnumSet.of(Entitlement.Status.AVAILABLE, Entitlement.Status.ACTIVE));
+      EnumSet.of(ActivationType.JIT, ActivationType.MPA));
   }
 
   //---------------------------------------------------------------------------
@@ -556,8 +549,7 @@ public class TestMpaProjectRoleCatalog {
     when(policyAnalyzer.findEntitlements(
       eq(SAMPLE_REQUESTING_USER),
       eq(SAMPLE_PROJECT),
-      eq(EnumSet.of(ActivationType.MPA)),
-      any()))
+      eq(EnumSet.of(ActivationType.MPA))))
       .thenReturn(EntitlementSet.empty());
 
     var catalog = new MpaProjectRoleCatalog(
@@ -570,27 +562,29 @@ public class TestMpaProjectRoleCatalog {
         1)
     );
 
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
     assertThrows(
       AccessDeniedException.class,
-      () -> catalog.listReviewers(SAMPLE_REQUESTING_USER, new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE))));
+      () -> catalog.listReviewers(
+        requestingUserContext,
+        new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE))));
   }
 
   @Test
   public void whenUserAllowedToActivateRoleWithoutMpa_ThenListReviewersReturnsList() throws Exception {
     var policyAnalyzer = Mockito.mock(PolicyAnalyzerRepository.class);
-    var role = new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE));
+    var role = new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE));
     when(policyAnalyzer.findEntitlements(
       eq(SAMPLE_REQUESTING_USER),
       eq(SAMPLE_PROJECT),
-      eq(EnumSet.of(ActivationType.MPA)),
-      any()))
-      .thenReturn(new EntitlementSet<>(
+      eq(EnumSet.of(ActivationType.MPA))))
+      .thenReturn(new EntitlementSet<>((
         new TreeSet<>(Set.of(new Entitlement<>(
-          new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, "roles/different-role")),
+          new ProjectRole(new RoleBinding(SAMPLE_PROJECT, "roles/different-role")),
           "-",
-          ActivationType.MPA,
-          Entitlement.Status.AVAILABLE))),
-        Set.of(),
+          ActivationType.MPA)))),
+        Map.of(),
+        Map.of(),
         Set.of()));
 
     var catalog = new MpaProjectRoleCatalog(
@@ -603,33 +597,33 @@ public class TestMpaProjectRoleCatalog {
         1)
     );
 
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
     assertThrows(
       AccessDeniedException.class,
-      () -> catalog.listReviewers(SAMPLE_REQUESTING_USER, role));
+      () -> catalog.listReviewers(requestingUserContext, role));
   }
 
   @Test
   public void whenUserAllowedToActivateRole_ThenListReviewersReturnsList() throws Exception {
     var policyAnalyzer = Mockito.mock(PolicyAnalyzerRepository.class);
-    var role = new ProjectRoleBinding(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE));
+    var role = new ProjectRole(new RoleBinding(SAMPLE_PROJECT, SAMPLE_ROLE));
     when(policyAnalyzer.findEntitlements(
       eq(SAMPLE_REQUESTING_USER),
       eq(SAMPLE_PROJECT),
-      eq(EnumSet.of(ActivationType.MPA)),
-      any()))
-      .thenReturn(new EntitlementSet<>(
+      eq(EnumSet.of(ActivationType.MPA))))
+      .thenReturn(new EntitlementSet<>((
         new TreeSet<>(Set.of(new Entitlement<>(
           role,
           "-",
-          ActivationType.MPA,
-          Entitlement.Status.AVAILABLE))),
-        Set.of(),
+          ActivationType.MPA)))),
+        Map.of(),
+        Map.of(),
         Set.of()));
     when(policyAnalyzer
       .findEntitlementHolders(
         eq(role),
         eq(ActivationType.MPA)))
-      .thenReturn(Set.of(SAMPLE_APPROVIING_USER, SAMPLE_REQUESTING_USER));
+      .thenReturn(Set.of(SAMPLE_APPROVING_USER, SAMPLE_REQUESTING_USER));
 
     var catalog = new MpaProjectRoleCatalog(
       policyAnalyzer,
@@ -641,9 +635,10 @@ public class TestMpaProjectRoleCatalog {
         1)
     );
 
-    var reviewers = catalog.listReviewers(SAMPLE_REQUESTING_USER, role);
+    var requestingUserContext = new MpaProjectRoleCatalog.UserContext(SAMPLE_REQUESTING_USER);
+    var reviewers = catalog.listReviewers(requestingUserContext, role);
     assertIterableEquals(
-      Set.of(SAMPLE_APPROVIING_USER),
+      Set.of(SAMPLE_APPROVING_USER),
       reviewers);
   }
 }

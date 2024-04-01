@@ -28,6 +28,8 @@ import com.google.api.services.cloudasset.v1.model.PolicyInfo;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.common.base.Preconditions;
 import com.google.solutions.jitaccess.core.*;
+import com.google.solutions.jitaccess.core.catalog.ProjectId;
+import org.jetbrains.annotations.NotNull;
 
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 
@@ -40,12 +42,12 @@ import java.util.List;
  */
 public class AssetInventoryClient {
   public static final String OAUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
-  private final GoogleCredentials credentials;
-  protected final HttpTransport.Options httpOptions;
+  private final @NotNull GoogleCredentials credentials;
+  protected final @NotNull HttpTransport.Options httpOptions;
 
   public AssetInventoryClient(
-    GoogleCredentials credentials,
-    HttpTransport.Options httpOptions
+    @NotNull GoogleCredentials credentials,
+    @NotNull HttpTransport.Options httpOptions
   ) {
     Preconditions.checkNotNull(credentials, "credentials");
     Preconditions.checkNotNull(httpOptions, "httpOptions");
@@ -54,7 +56,7 @@ public class AssetInventoryClient {
     this.httpOptions = httpOptions;
   }
 
-  protected CloudAsset createClient() throws IOException {
+  protected @NotNull CloudAsset createClient() throws IOException {
     try {
       return new CloudAsset.Builder(
         HttpTransport.newTransport(),
@@ -73,8 +75,8 @@ public class AssetInventoryClient {
    */
   @WithSpan
   public List<PolicyInfo> getEffectiveIamPolicies(
-    String scope,
-    ProjectId projectId
+    @NotNull String scope,
+    @NotNull ProjectId projectId
   ) throws AccessException, IOException {
     Preconditions.checkNotNull(scope, "scope");
     Preconditions.checkNotNull(projectId, "projectId");

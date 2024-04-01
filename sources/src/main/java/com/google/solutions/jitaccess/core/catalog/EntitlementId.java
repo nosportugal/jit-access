@@ -21,6 +21,9 @@
 
 package com.google.solutions.jitaccess.core.catalog;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import java.util.Comparator;
 
 /**
@@ -30,12 +33,12 @@ public abstract class EntitlementId implements Comparable<EntitlementId> {
   /**
    * @return the catalog the entitlement belongs to
    */
-  public abstract String catalog();
+  public abstract @NotNull String catalog();
 
   /**
    * @return the ID within the catalog
    */
-  public abstract String id();
+  public abstract @NotNull String id();
 
   @Override
   public String toString() {
@@ -43,7 +46,7 @@ public abstract class EntitlementId implements Comparable<EntitlementId> {
   }
 
   @Override
-  public boolean equals(Object o) {
+  public boolean equals(@Nullable Object o) {
     if (this == o) {
       return true;
     }
@@ -62,7 +65,7 @@ public abstract class EntitlementId implements Comparable<EntitlementId> {
   }
 
   @Override
-  public int compareTo(EntitlementId o) {
+  public int compareTo(@NotNull EntitlementId o) {
     return Comparator
       .comparing((EntitlementId e) -> e.catalog())
       .thenComparing(e -> e.id())

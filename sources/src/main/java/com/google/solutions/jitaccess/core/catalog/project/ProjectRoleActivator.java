@@ -24,13 +24,15 @@ package com.google.solutions.jitaccess.core.catalog.project;
 import com.google.api.client.json.webtoken.JsonWebToken;
 import com.google.api.services.cloudresourcemanager.v3.model.Binding;
 import com.google.common.base.Preconditions;
+import com.google.solutions.jitaccess.cel.TemporaryIamCondition;
 import com.google.solutions.jitaccess.core.*;
+import com.google.solutions.jitaccess.core.auth.UserId;
 import com.google.solutions.jitaccess.core.catalog.*;
-import com.google.solutions.jitaccess.core.clients.IamTemporaryAccessConditions;
 import com.google.solutions.jitaccess.core.clients.ResourceManagerClient;
 
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import jakarta.enterprise.context.Dependent;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -44,28 +46,34 @@ import java.util.stream.Collectors;
  * Activator for project roles.
  */
 @Dependent
-public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBinding> {
-  private final ResourceManagerClient resourceManagerClient;
+public class ProjectRoleActivator extends EntitlementActivator<
+  ProjectRole,
+  ProjectId,
+  MpaProjectRoleCatalog.UserContext> {
+  private final @NotNull ResourceManagerClient resourceManagerClient;
+
+  private final Options options;
 
   public ProjectRoleActivator(
-    EntitlementCatalog<ProjectRoleBinding> catalog,
-    ResourceManagerClient resourceManagerClient,
-    JustificationPolicy policy
+    @NotNull Catalog<ProjectRole, ProjectId, MpaProjectRoleCatalog.UserContext> catalog,
+    @NotNull ResourceManagerClient resourceManagerClient,
+    @NotNull JustificationPolicy policy,
+    @NotNull Options options
   ) {
     super(catalog, policy);
 
     Preconditions.checkNotNull(resourceManagerClient, "resourceManagerClient");
-
     this.resourceManagerClient = resourceManagerClient;
+    this.options = options;
   }
 
   private void provisionTemporaryBinding(
-    String bindingDescription,
-    ProjectId projectId,
-    UserId user,
-    Set<String> roles,
-    Instant startTime,
-    Duration duration
+    @NotNull String bindingDescription,
+    @NotNull ProjectId projectId,
+    @NotNull UserId user,
+    @NotNull Set<String> roles,
+    @NotNull Instant startTime,
+    @NotNull Duration duration
   ) throws AccessException, AlreadyExistsException, IOException {
 
     //
@@ -82,9 +90,7 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
         .setCondition(new com.google.api.services.cloudresourcemanager.v3.model.Expr()
           .setTitle(JitConstraints.ACTIVATION_CONDITION_TITLE)
           .setDescription(bindingDescription)
-          .setExpression(IamTemporaryAccessConditions.createExpression(startTime, duration)));
-
-      //TODO(later): Add bindings in a single request.
+          .setExpression(new TemporaryIamCondition(startTime, duration).toString()));
 
       this.resourceManagerClient.addProjectIamBinding(
         projectId,
@@ -99,11 +105,15 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
   // -------------------------------------------------------------------------
 
   @Override
-  @WithSpan
-  protected void provisionAccess(
-    JitActivationRequest<ProjectRoleBinding> request
-  ) throws AccessException, AlreadyExistsException, IOException {
+  public int maximumNumberOfEntitlementsPerJitRequest() {
+    return this.options.maxNumberOfEntitlementsPerJitRequest;
+  }
 
+  @Override
+  @WithSpan
+  protected Activation provisionAccess(
+    @NotNull JitActivationRequest<ProjectRole> request
+  ) throws AccessException, AlreadyExistsException, IOException {
     Preconditions.checkNotNull(request, "request");
 
     var bindingDescription = String.format(
@@ -120,13 +130,17 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
         .collect(Collectors.toSet()),
       request.startTime(),
       request.duration());
+
+    return new Activation(
+      request.startTime(),
+      request.duration());
   }
 
   @Override
   @WithSpan
-  protected void provisionAccess(
-    UserId approvingUser,
-    MpaActivationRequest<ProjectRoleBinding> request
+  protected Activation provisionAccess(
+    @NotNull UserId approvingUser,
+    @NotNull MpaActivationRequest<ProjectRole> request
   ) throws AccessException, AlreadyExistsException, IOException {
 
     Preconditions.checkNotNull(request, "request");
@@ -139,7 +153,7 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
     //
     // NB. The start/end time for the binding is derived from the approval token. If multiple
     // reviewers try to approve the same token, the resulting condition (and binding) will
-    // be the same. This is important so that we can use the FAIL_IF_BINDING_EXISTS flag.
+    // be the same.
     //
 
     provisionTemporaryBinding(
@@ -152,14 +166,18 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
         .collect(Collectors.toSet()),
       request.startTime(),
       request.duration());
+
+    return new Activation(
+      request.startTime(),
+      request.duration());
   }
 
   @Override
   @WithSpan
-  public JsonWebTokenConverter<MpaActivationRequest<ProjectRoleBinding>> createTokenConverter() {
+  public @NotNull JsonWebTokenConverter<MpaActivationRequest<ProjectRole>> createTokenConverter() {
     return new JsonWebTokenConverter<>() {
       @Override
-      public JsonWebToken.Payload convert(MpaActivationRequest<ProjectRoleBinding> request) {
+      public JsonWebToken.Payload convert(@NotNull MpaActivationRequest<ProjectRole> request) {
         var roleBindings = request.entitlements()
           .stream()
           .map(ent -> ent.roleBinding())
@@ -182,8 +200,9 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
           .set("end", request.endTime().getEpochSecond());
       }
 
+      @SuppressWarnings("unchecked")
       @Override
-      public MpaActivationRequest<ProjectRoleBinding> convert(JsonWebToken.Payload payload) {
+      public @NotNull MpaActivationRequest<ProjectRole> convert(@NotNull JsonWebToken.Payload payload) {
         var roleBinding = new RoleBinding(
           payload.get("resource").toString(),
           payload.get("role").toString());
@@ -194,7 +213,7 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
         return new MpaRequest<>(
           new ActivationId(payload.getJwtId()),
           new UserId(payload.get("beneficiary").toString()),
-          Set.of(new ProjectRoleBinding(roleBinding)),
+          Set.of(new ProjectRole(roleBinding)),
           ((List<String>)payload.get("reviewers"))
             .stream()
             .map(email -> new UserId(email))
@@ -204,5 +223,17 @@ public class ProjectRoleActivator extends EntitlementActivator<ProjectRoleBindin
           Duration.ofSeconds(endTime - startTime));
       }
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // Options.
+  // -------------------------------------------------------------------------
+
+  public record Options(int maxNumberOfEntitlementsPerJitRequest) {
+    public Options {
+      Preconditions.checkArgument(
+        maxNumberOfEntitlementsPerJitRequest > 0,
+        "The maximum number of entitlements per request must be greater than zero");
+    }
   }
 }

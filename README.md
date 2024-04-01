@@ -17,8 +17,6 @@ without having to grant them permanent access. This type of just-in-time privile
 * Create an audit trail that indicates why privileges were activated.
 * Conduct audits and reviews for analyzing past activity.
 
-> :memo: **Note:** Just-In-Time Access uses the Policy Analyzer API. Starting January 15, 2024, this API will be subject to [new quota restrictions and might require a Security Command Center subscription](https://cloud.google.com/policy-intelligence/docs/billing-questions#pricing-changes). For further information, see [#193](https://github.com/GoogleCloudPlatform/jit-access/issues/193). 
-
 ## Filter project visibility
 
 Use the `REQUIRED_PROJECT_TAG_PATH` env var to filter the list of projects based on a (namespaced) tag:

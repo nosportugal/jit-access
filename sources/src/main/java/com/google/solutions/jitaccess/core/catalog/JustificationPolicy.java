@@ -21,7 +21,9 @@
 
 package com.google.solutions.jitaccess.core.catalog;
 
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Policy for verifying justification messages.
@@ -31,12 +33,12 @@ public interface JustificationPolicy {
    * Check that a justification meets criteria.
    */
   void checkJustification(
-    UserId user,
-    String justification
+    @NotNull UserId user,
+    @Nullable String justification
   ) throws InvalidJustificationException;
 
   /**
    * @return hint indicating what kind of justification is expected.
    */
-  String hint();
+  @NotNull String hint();
 }

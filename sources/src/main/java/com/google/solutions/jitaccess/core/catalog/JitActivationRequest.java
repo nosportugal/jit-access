@@ -21,7 +21,8 @@
 
 package com.google.solutions.jitaccess.core.catalog;
 
-import com.google.solutions.jitaccess.core.UserId;
+import com.google.solutions.jitaccess.core.auth.UserId;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -33,12 +34,12 @@ import java.util.Set;
 public abstract class JitActivationRequest<TEntitlementId extends EntitlementId>
   extends ActivationRequest<TEntitlementId> {
   protected JitActivationRequest(
-    ActivationId id,
-    UserId requestingUser,
-    Set<TEntitlementId> entitlements,
-    String justification,
-    Instant startTime,
-    Duration duration) {
+    @NotNull ActivationId id,
+    @NotNull UserId requestingUser,
+    @NotNull Set<TEntitlementId> entitlements,
+    @NotNull String justification,
+    @NotNull Instant startTime,
+    @NotNull Duration duration) {
     super(
       id,
       requestingUser,
@@ -49,7 +50,7 @@ public abstract class JitActivationRequest<TEntitlementId extends EntitlementId>
   }
 
   @Override
-  public final ActivationType type() {
+  public final @NotNull ActivationType type() {
     return ActivationType.JIT;
   }
 }
