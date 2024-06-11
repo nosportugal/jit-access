@@ -113,7 +113,7 @@
     <dependency>
       <groupId>io.quarkiverse.opentelemetry.exporter</groupId>
       <artifactId>quarkus-opentelemetry-exporter-gcp</artifactId>
-      <version>3.5.0.Final</version>
+      <version>3.8.3.0</version>
     </dependency>
     <dependency>
       <groupId>dev.cel</groupId>
