@@ -9,3 +9,7 @@ jobs:
     uses: nosportugal/github-workflows-ccoe/.github/workflows/pr-labeler.yml@main
     with:
       configuration-path: .github/pr-labeler.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      pull-requests: write
